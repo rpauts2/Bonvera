@@ -1,0 +1,1645 @@
+offers:
+- category: cards
+  slug: wayment
+  name: Wayment
+  title: Wayment
+  code: wayment
+  emoji: 💳
+  reward: 950
+  hold: 30
+  condition: Выпуск зарубежной карты оплачен пользователем; выпуск карты платный.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Нужно подтвердить факт оплаты выпуска и выпуск карты.
+- category: cards
+  slug: ubrir
+  name: УБРиР
+  title: УБРиР
+  code: ubrir
+  emoji: 💳
+  reward: 900
+  hold: 30
+  condition: Выдача карты + покупка на сумму от 1 000 ₽.
+  age_min: 18
+  age_max: 120
+  minimum: 1000
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: psb
+  name: ПСБ
+  title: ПСБ
+  code: psb
+  emoji: 💳
+  reward: 750
+  hold: 30
+  condition: Активация карты. Целевое действие по условиям сети необходимо уточнить.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Выплата пользователю задана владельцем каталога; конкретное ЦД уточнить у
+    менеджера сети.
+- category: cards
+  slug: sovkombank_halva
+  name: Совкомбанк Халва
+  title: Совкомбанк Халва
+  code: sovkombank_halva
+  emoji: 💳
+  reward: 750
+  hold: 30
+  condition: Выдача карты рассрочки «Халва».
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Кредитный продукт. До размещения раскрывать существенные условия продукта.
+- category: cards
+  slug: vtb
+  name: ВТБ
+  title: ВТБ
+  code: vtb
+  emoji: 💳
+  reward: 700
+  hold: 30
+  condition: Активация карты + покупка от 100 ₽.
+  age_min: 18
+  age_max: 120
+  minimum: 100
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: otp_bank
+  name: ОТП Банк
+  title: ОТП Банк
+  code: otp_bank
+  emoji: 💳
+  reward: 650
+  hold: 30
+  condition: Получение карты курьером + покупка от 100 ₽ в течение 30 дней.
+  age_min: 18
+  age_max: 120
+  minimum: 100
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: bspb
+  name: БСПБ
+  title: БСПБ
+  code: bspb
+  emoji: 💳
+  reward: 650
+  hold: 30
+  condition: Только выдача карты; покупка не требуется.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: ak_bars
+  name: Ак Барс
+  title: Ак Барс
+  code: ak_bars
+  emoji: 💳
+  reward: 550
+  hold: 30
+  condition: Покупка от 1 000 ₽ в течение 30 дней; операция не должна быть возвращена.
+  age_min: 18
+  age_max: 120
+  minimum: 1000
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: roketbank
+  name: Рокетбанк
+  title: Рокетбанк
+  code: roketbank
+  emoji: 💳
+  reward: 550
+  hold: 30
+  condition: Выдача карты + расходные операции от 500 ₽ в течение 30 дней.
+  age_min: 18
+  age_max: 120
+  minimum: 500
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: renessans
+  name: Ренессанс
+  title: Ренессанс
+  code: renessans
+  emoji: 💳
+  reward: 500
+  hold: 30
+  condition: Активация карты.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: fora_bank
+  name: ФОРА Банк
+  title: ФОРА Банк
+  code: fora_bank
+  emoji: 💳
+  reward: 500
+  hold: 30
+  condition: Активация карты + покупка от 300 ₽.
+  age_min: 18
+  age_max: 120
+  minimum: 300
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: mts_dengi
+  name: МТС Деньги
+  title: МТС Деньги
+  code: mts_dengi
+  emoji: 💳
+  reward: 450
+  hold: 30
+  condition: Получение карты курьером + покупка от 500 ₽ в течение 90 дней.
+  age_min: 18
+  age_max: 120
+  minimum: 500
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: t_bank
+  name: Т-Банк
+  title: Т-Банк
+  code: t_bank
+  emoji: 💳
+  reward: 450
+  hold: 30
+  condition: Встреча с представителем + покупка от 100 ₽.
+  age_min: 18
+  age_max: 120
+  minimum: 100
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: alfa_bank_apelsinovaya
+  name: Альфа-Банк (Апельсиновая)
+  title: Альфа-Банк (Апельсиновая)
+  code: alfa_bank_apelsinovaya
+  emoji: 💳
+  reward: 450
+  hold: 30
+  condition: Получение карты + покупка в течение 30 дней; минимальная сумма покупки
+    в исходных условиях не указана.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Сумму/тип покупки требуется уточнить у партнёрской сети.
+- category: cards
+  slug: ozon_bank
+  name: ОЗОН Банк
+  title: ОЗОН Банк
+  code: ozon_bank
+  emoji: 💳
+  reward: 300
+  hold: 30
+  condition: Активация карты + покупка от 1 ₽ вне Ozon.
+  age_min: 18
+  age_max: 120
+  minimum: 1
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: cards
+  slug: mkb
+  name: МКБ
+  title: МКБ
+  code: mkb
+  emoji: 💳
+  reward: 300
+  hold: 30
+  condition: Активация карты.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: ''
+- category: bk
+  slug: pari
+  name: PARI
+  title: PARI
+  code: pari
+  emoji: ⚽
+  reward: 1800
+  hold: 60
+  condition: 'Регистрация + депозит не менее 500 ₽ в течение 30 дней. Кэшбэк начисляется
+    только после подтверждения целевого действия постбеком партнёрской сети. Отдельный
+    приветственный бонус БК: проверь условия в личном кабинете и не обещай фрибет
+    без проверки.'
+  age_min: 18
+  age_max: 120
+  minimum: 500
+  kind: ''
+  source_url: https://pari.ru/help-center/vopros-otvet/akcii-i-bonusy/dlya-novyh-klientov-id1733
+  url: https://bit-do.ru/1853-1000326-mo0fRv22F96
+  note: 'Приветственная акция PARI: до 5 фрибетов по 1 000 ₽ поэтапно. Для первого
+    фрибета требуется регистрация и первый депозит от 1 000 ₽; последующие этапы зависят
+    от заданий/оборота и условий личного кабинета. Номинал фрибета не равен сумме
+    выводимых денег; проверяй актуальные правила.'
+- category: bk
+  slug: marafon_bet
+  name: Марафон Бет
+  title: Марафон Бет
+  code: marafon_bet
+  emoji: ⚽
+  reward: 1400
+  hold: 45
+  condition: Регистрация + первый депозит не менее 500 ₽ в течение месяца. Возраст
+    21+ в рекламных размещениях. Кэшбэк — только после постбека.
+  age_min: 21
+  age_max: 120
+  minimum: 500
+  kind: ''
+  source_url: https://www.marathonbet.ru/lps/newbonus
+  url: https://bit-do.ru/1852-1000326-LOvf9XKKskZ
+  note: 'Приветственный бонус БК: 100% первого депозита от 500 ₽, максимум 25 000
+    ₽. Для перевода бонуса на основной баланс нужны live-пари с коэффициентом от 1.50,
+    суммарный оборот 5× (первый депозит + бонус) за 14 дней. Срок акции на официальной
+    странице — до 30.06.2027. Это бонус БК, а не твой кэшбэк; только для новых клиентов
+    и после идентификации.'
+- category: bk
+  slug: fonbet
+  name: Fonbet
+  title: Fonbet
+  code: fonbet
+  emoji: ⚽
+  reward: 1300
+  hold: 30
+  condition: Регистрация + депозит от 300 ₽. Фрибет/приветственная акция зависит от
+    доступного предложения в кабинете; кэшбэк — только после постбека.
+  age_min: 18
+  age_max: 120
+  minimum: 300
+  kind: ''
+  source_url: https://fon.bet/help-center/vopros-otvet/akcii-i-bonusy/welcome-15k-id2036
+  url: https://bit-do.ru/1669-1000326-djJCB3EETde
+  note: 'Приветственная акция Fonbet: новый клиент проходит регистрацию и мини-игру;
+    по результату назначается фрибет от 100 до 15 000 ₽. Точный размер зависит от
+    результата и доступности акции. До участия открой правила Fonbet и проверь, что
+    предложение отображается в личном кабинете.'
+- category: bk
+  slug: melbet
+  name: Мелбет
+  title: Мелбет
+  code: melbet
+  emoji: ⚽
+  reward: 1300
+  hold: 30
+  condition: Регистрация + накопительный депозит от 350 ₽. Точная механика накопления
+    уточняется в правилах выбранной акции; кэшбэк — после постбека.
+  age_min: 18
+  age_max: 120
+  minimum: 350
+  kind: ''
+  source_url: https://melbet.ru/ru/promotions/5/
+  url: https://bit-do.ru/1667-1000326-OBvHm3vvtqQ
+  note: 'На официальной промо-странице Melbet заявлен приветственный бонус до 15 000
+    ₽, но подробные условия не удалось независимо прочитать из текущей среды. Не обещай
+    этот максимум: перед регистрацией открой актуальные правила и проверь размер,
+    минимальный депозит, коэффициент и сроки в личном кабинете.'
+- category: bk
+  slug: baltbet
+  name: Балтбет
+  title: Балтбет
+  code: baltbet
+  emoji: ⚽
+  reward: 1300
+  hold: 14
+  condition: Регистрация + сумма депозитов более 500 ₽. Кэшбэк — после постбека. Проверить,
+    разрешает ли партнёрская программа привлечение через вашу ссылку.
+  age_min: 18
+  age_max: 120
+  minimum: 501
+  kind: ''
+  source_url: https://baltbet.ru/faq/privpari
+  url: https://bit-do.ru/1670-1000326-pYRtQJWWUjE
+  note: 'Отдельная акция Балтбет «Приветственные пари» состоит из 6 заданий: идентификация,
+    депозит (величина 100 или 300 ₽ определяется заданием), ординар/экспресс и последующие
+    задания; награда выдаётся за выполненные задания, потенциальная сумма по промо-странице
+    — до 8 000 ₽. ВАЖНО: правила акции прямо ограничивают регистрацию по сторонним
+    партнёрским ссылкам/промокодам. Не совмещай эту приветственную акцию с нашей ссылкой,
+    пока менеджер письменно не подтвердит исключение.'
+- category: bk
+  slug: leon
+  name: Леон
+  title: Леон
+  code: leon
+  emoji: ⚽
+  reward: 850
+  hold: 30
+  condition: Регистрация + первый депозит. Кэшбэк по партнёрскому офферу — только
+    после постбека; точный минимальный депозит для ЦД уточнить в кабинете сети. Отдельная
+    приветственная акция БК — по самостоятельным правилам.
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: https://leon.ru/promo/bonuses/welcome-freebet
+  url: https://bit-do.ru/595-1000326-eDmCw6QQhw3
+  note: 'Приветственный фрибет Леон: 3 000 ₽ после регистрации, первого депозита одним
+    платежом от 1 000 ₽ и квалифицирующего live-одинара от 1 000 ₽ с коэффициентом
+    1.70–3.00. Фрибет нужно использовать в мобильном приложении на live-одинар с коэффициентом
+    1.50–2.50, событие должно начаться в пределах 7 дней. По странице акции срок —
+    07.06.2026–28.02.2027. Это отдельный бонус БК, а не партнёрский кэшбэк.'
+- category: mfo
+  slug: vebzaym
+  name: Вебзайм
+  title: Вебзайм
+  code: vebzaym
+  emoji: 🏦
+  reward: 1370
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: boostra
+  name: Boostra
+  title: Boostra
+  code: boostra
+  emoji: 🏦
+  reward: 1220
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: nebus
+  name: Небус
+  title: Небус
+  code: nebus
+  emoji: 🏦
+  reward: 1220
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: zaymer
+  name: Займер
+  title: Займер
+  code: zaymer
+  emoji: 🏦
+  reward: 1140
+  hold: 30
+  condition: Выдача займа новому клиенту
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: moneyman
+  name: MoneyMan
+  title: MoneyMan
+  code: moneyman
+  emoji: 🏦
+  reward: 1120
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: webbankir
+  name: Webbankir
+  title: Webbankir
+  code: webbankir
+  emoji: 🏦
+  reward: 1080
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: platiza
+  name: Platiza
+  title: Platiza
+  code: platiza
+  emoji: 🏦
+  reward: 1060
+  hold: 30
+  condition: Первый займ; займ не должен быть погашен в день выдачи
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: umnye_nalichnye
+  name: Умные наличные
+  title: Умные наличные
+  code: umnye_nalichnye
+  emoji: 🏦
+  reward: 1040
+  hold: 30
+  condition: Выдача займа новому клиенту
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: srochno_dengi
+  name: Срочно Деньги
+  title: Срочно Деньги
+  code: srochno_dengi
+  emoji: 🏦
+  reward: 1020
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: laykzaym
+  name: ЛайкЗайм
+  title: ЛайкЗайм
+  code: laykzaym
+  emoji: 🏦
+  reward: 1000
+  hold: 30
+  condition: Первый займ или повторный после перерыва не менее 60 дней
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: pravovoy_kapital
+  name: Правовой Капитал
+  title: Правовой Капитал
+  code: pravovoy_kapital
+  emoji: 🏦
+  reward: 990
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: max_credit
+  name: Max.Credit
+  title: Max.Credit
+  code: max_credit
+  emoji: 🏦
+  reward: 940
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: e_kapusta
+  name: Е-капуста
+  title: Е-капуста
+  code: e_kapusta
+  emoji: 🏦
+  reward: 910
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: bystrodengi
+  name: Быстроденьги
+  title: Быстроденьги
+  code: bystrodengi
+  emoji: 🏦
+  reward: 860
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: dengi_v_dolg
+  name: Деньги в долг
+  title: Деньги в долг
+  code: dengi_v_dolg
+  emoji: 🏦
+  reward: 840
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: greenmoney
+  name: GreenMoney
+  title: GreenMoney
+  code: greenmoney
+  emoji: 🏦
+  reward: 840
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: berezhnyy
+  name: Бережный
+  title: Бережный
+  code: berezhnyy
+  emoji: 🏦
+  reward: 780
+  hold: 30
+  condition: Новый клиент; займ от 2 000 ₽
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: mikrorezerv
+  name: Микрорезерв
+  title: Микрорезерв
+  code: mikrorezerv
+  emoji: 🏦
+  reward: 760
+  hold: 30
+  condition: Первый займ; возраст 21–75 лет
+  age_min: 21
+  age_max: 75
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: mkk_mikrozaym
+  name: МКК Микрозайм
+  title: МКК Микрозайм
+  code: mkk_mikrozaym
+  emoji: 🏦
+  reward: 760
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: belkakredit
+  name: БелкаКредит
+  title: БелкаКредит
+  code: belkakredit
+  emoji: 🏦
+  reward: 760
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: migkredit
+  name: МигКредит
+  title: МигКредит
+  code: migkredit
+  emoji: 🏦
+  reward: 740
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: credit_plus
+  name: Credit Plus
+  title: Credit Plus
+  code: credit_plus
+  emoji: 🏦
+  reward: 740
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: neomoney
+  name: Neomoney
+  title: Neomoney
+  code: neomoney
+  emoji: 🏦
+  reward: 720
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: turbozaym
+  name: Турбозайм
+  title: Турбозайм
+  code: turbozaym
+  emoji: 🏦
+  reward: 720
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: centrozaym
+  name: Центрозайм
+  title: Центрозайм
+  code: centrozaym
+  emoji: 🏦
+  reward: 680
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: ezaem
+  name: Ezaem
+  title: Ezaem
+  code: ezaem
+  emoji: 🏦
+  reward: 660
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: rocketman
+  name: Rocketman
+  title: Rocketman
+  code: rocketman
+  emoji: 🏦
+  reward: 660
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: credit7
+  name: Credit7
+  title: Credit7
+  code: credit7
+  emoji: 🏦
+  reward: 660
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: finlove
+  name: Finlove
+  title: Finlove
+  code: finlove
+  emoji: 🏦
+  reward: 660
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: mega_dengi
+  name: Мега Деньги
+  title: Мега Деньги
+  code: mega_dengi
+  emoji: 🏦
+  reward: 620
+  hold: 30
+  condition: Первый займ на карту
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: cashiro
+  name: Cashiro
+  title: Cashiro
+  code: cashiro
+  emoji: 🏦
+  reward: 580
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: bunny_money
+  name: Bunny Money
+  title: Bunny Money
+  code: bunny_money
+  emoji: 🏦
+  reward: 580
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: celevye_finansy
+  name: Целевые Финансы
+  title: Целевые Финансы
+  code: celevye_finansy
+  emoji: 🏦
+  reward: 580
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: svoi_lyudi
+  name: Свои люди
+  title: Свои люди
+  code: svoi_lyudi
+  emoji: 🏦
+  reward: 560
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: kviku
+  name: Kviku
+  title: Kviku
+  code: kviku
+  emoji: 🏦
+  reward: 540
+  hold: 30
+  condition: Новый клиент; возраст 18–65 лет
+  age_min: 18
+  age_max: 65
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: hurma_kredit
+  name: Хурма Кредит
+  title: Хурма Кредит
+  code: hurma_kredit
+  emoji: 🏦
+  reward: 520
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: mir_deneg
+  name: МИР Денег
+  title: МИР Денег
+  code: mir_deneg
+  emoji: 🏦
+  reward: 500
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: prostye_zaymy
+  name: Простые займы
+  title: Простые займы
+  code: prostye_zaymy
+  emoji: 🏦
+  reward: 500
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: centrofinans
+  name: Центрофинанс
+  title: Центрофинанс
+  code: centrofinans
+  emoji: 🏦
+  reward: 500
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: dengi_srazu
+  name: Деньги сразу
+  title: Деньги сразу
+  code: dengi_srazu
+  emoji: 🏦
+  reward: 490
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: fin5
+  name: Fin5
+  title: Fin5
+  code: fin5
+  emoji: 🏦
+  reward: 420
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: migom_zaym
+  name: Мигом Займ
+  title: Мигом Займ
+  code: migom_zaym
+  emoji: 🏦
+  reward: 380
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: zaymirub
+  name: ЗаймиРУБ
+  title: ЗаймиРУБ
+  code: zaymirub
+  emoji: 🏦
+  reward: 380
+  hold: 30
+  condition: Первый займ
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: 495kredit
+  name: 495кредит
+  title: 495кредит
+  code: 495kredit
+  emoji: 🏦
+  reward: 380
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: credit_365
+  name: Credit 365
+  title: Credit 365
+  code: credit_365
+  emoji: 🏦
+  reward: 360
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: dengiok
+  name: ДеньгиОк
+  title: ДеньгиОк
+  code: dengiok
+  emoji: 🏦
+  reward: 340
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: ekvazaym
+  name: Эквазайм
+  title: Эквазайм
+  code: ekvazaym
+  emoji: 🏦
+  reward: 300
+  hold: 30
+  condition: Займ на именную карту
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: zaymiks
+  name: Займикс
+  title: Займикс
+  code: zaymiks
+  emoji: 🏦
+  reward: 280
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: vozmika
+  name: Возьмика
+  title: Возьмика
+  code: vozmika
+  emoji: 🏦
+  reward: 270
+  hold: 30
+  condition: Первый займ; возраст 18–65 лет
+  age_min: 18
+  age_max: 65
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: davaka
+  name: Давака
+  title: Давака
+  code: davaka
+  emoji: 🏦
+  reward: 270
+  hold: 30
+  condition: Первый займ; возраст 18–75 лет
+  age_min: 18
+  age_max: 75
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: alistar
+  name: Алистар
+  title: Алистар
+  code: alistar
+  emoji: 🏦
+  reward: 210
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: mfo
+  slug: finmi
+  name: FinMi
+  title: FinMi
+  code: finmi
+  emoji: 🏦
+  reward: 210
+  hold: 30
+  condition: Выдача займа
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: ''
+  source_url: ''
+  url: ''
+  note: Займ — обязательство перед кредитором; сервис не должен призывать оформлять
+    его только ради кэшбэка. Проверять факт выдачи без получения/хранения паспорта
+    и договора.
+- category: cpl
+  slug: narodnyy_zaym
+  name: Народный Займ
+  title: Народный Займ
+  code: narodnyy_zaym
+  emoji: 📝
+  reward: 140
+  hold: 30
+  condition: Заявка принята
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: tvoy_zaym
+  name: Твой займ
+  title: Твой займ
+  code: tvoy_zaym
+  emoji: 📝
+  reward: 140
+  hold: 30
+  condition: Заявка принята
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: s_dengi
+  name: С-Деньги
+  title: С-Деньги
+  code: s_dengi
+  emoji: 📝
+  reward: 130
+  hold: 30
+  condition: Заявка принята + привязка карты
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: карта
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: zarubas
+  name: Зарубас
+  title: Зарубас
+  code: zarubas
+  emoji: 📝
+  reward: 110
+  hold: 30
+  condition: Валидная заявка на подбор
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: credeo
+  name: Credeo
+  title: Credeo
+  code: credeo
+  emoji: 📝
+  reward: 80
+  hold: 30
+  condition: Верифицированная заявка
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: 7_zaymov
+  name: 7 Займов
+  title: 7 Займов
+  code: 7_zaymov
+  emoji: 📝
+  reward: 60
+  hold: 30
+  condition: Привязка карты
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: карта
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: 23_zayma
+  name: 23 Займа
+  title: 23 Займа
+  code: 23_zayma
+  emoji: 📝
+  reward: 40
+  hold: 30
+  condition: Заявка принята
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: roszaym
+  name: РосЗайм
+  title: РосЗайм
+  code: roszaym
+  emoji: 📝
+  reward: 30
+  hold: 30
+  condition: Привязка карты
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: карта
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: vishnya
+  name: Вишня
+  title: Вишня
+  code: vishnya
+  emoji: 📝
+  reward: 30
+  hold: 30
+  condition: Заявка принята
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: zaimsrazu
+  name: Zaimsrazu
+  title: Zaimsrazu
+  code: zaimsrazu
+  emoji: 📝
+  reward: 30
+  hold: 30
+  condition: Заявка принята
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: rublion
+  name: РублиON
+  title: РублиON
+  code: rublion
+  emoji: 📝
+  reward: 25
+  hold: 30
+  condition: Заявка
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: telezaim
+  name: Telezaim
+  title: Telezaim
+  code: telezaim
+  emoji: 📝
+  reward: 20
+  hold: 30
+  condition: Заявка принята
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: ryabina
+  name: Рябина
+  title: Рябина
+  code: ryabina
+  emoji: 📝
+  reward: 20
+  hold: 30
+  condition: Привязка карты
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: карта
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: schedraya_kazna
+  name: Щедрая казна
+  title: Щедрая казна
+  code: schedraya_kazna
+  emoji: 📝
+  reward: 20
+  hold: 30
+  condition: Заявка
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: t_zaem
+  name: Т-Заём
+  title: Т-Заём
+  code: t_zaem
+  emoji: 📝
+  reward: 20
+  hold: 30
+  condition: Привязка карты
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: карта
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: klikzaym
+  name: КликЗайм
+  title: КликЗайм
+  code: klikzaym
+  emoji: 📝
+  reward: 20
+  hold: 30
+  condition: Заявка
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: dayvdolg
+  name: Dayvdolg
+  title: Dayvdolg
+  code: dayvdolg
+  emoji: 📝
+  reward: 10
+  hold: 30
+  condition: Заявка нового уникального пользователя
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: zolbank
+  name: ZolBank
+  title: ZolBank
+  code: zolbank
+  emoji: 📝
+  reward: 10
+  hold: 30
+  condition: Заявка
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.
+- category: cpl
+  slug: buratino
+  name: Буратино
+  title: Буратино
+  code: buratino
+  emoji: 📝
+  reward: 8
+  hold: 30
+  condition: Заявка
+  age_min: 18
+  age_max: 120
+  minimum: 0
+  kind: заявка
+  source_url: ''
+  url: ''
+  note: Займ оформлять не требуется. Перед отправкой пользователь должен понимать
+    передачу данных партнёрам и возможные звонки/SMS.

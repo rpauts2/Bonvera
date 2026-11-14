@@ -685,8 +685,14 @@ async def dashboard(s: Session, uid: int, bot_username: str | None) -> dict:
     refs = (
         await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == uid))
     ).scalar() or 0
-    offers = await list_offers(s, uid, sort="reward", available_only=True)
+    # Популярные предложения показываем независимо от доступности к оформлению:
+    # у 87 из 93 офферов ещё нет проверенной партнёрской ссылки, и из-за
+    # available_only главная выглядела поломкой, хотя каталог отдаёт все 93.
+    # Честные бейджи («Нет ссылки», «Скоро») остаются на самих карточках.
+    offers = await list_offers(s, uid, sort="reward")
+    offers.sort(key=lambda c: (0 if c["available"] else 1, -c["reward"]))
     ach = await achievements(s, uid)
+    events = await notifications(s, uid, limit=3)
     return {
         "wallet": summary,
         "confirmed_orders": confirmed,
@@ -694,8 +700,11 @@ async def dashboard(s: Session, uid: int, bot_username: str | None) -> dict:
         "tasks_done": sum(1 for t in tasks if t["done"]),
         "tasks_total": len(tasks),
         "referral": {"invited": invited, "qualified": qualified, "earned": int(refs)},
+        "ref_link": f"https://t.me/{bot_username}?start=ref_{uid}" if bot_username else f"/start ref_{uid}",
+        "channel_url": cfg.channel_url or None,
         "popular_offers": offers[:4],
         "achievements_preview": ach[:4],
+        "recent_events": events,
         "unread_notifications": await unread_notifications_count(s, u),
     }
 
@@ -716,7 +725,7 @@ async def friends_info(s: Session, uid: int, bot_username: str | None) -> dict:
         )
     ).scalars().all()
     ref_link = f"https://t.me/{bot_username}?start=ref_{uid}" if bot_username else f"/start ref_{uid}"
-    share = f"https://t.me/share/url?url={ref_link}&text=Кэшбэк за оформление банковской карты"
+    share = f"https://t.me/share/url?url={ref_link}&text=Кэшбэк за карты, займы и заявки в BONVERA — приглашаю тебя"
     return {
         "ref_link": ref_link,
         "share_link": share,

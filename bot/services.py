@@ -551,9 +551,13 @@ async def task_states(s: Session, uid: int) -> list[dict]:
     channel_done = await has_task_entry(s, uid, f"task:channel:{uid}")
     first_done = await has_task_entry(s, uid, f"task:first_order:{uid}")
     ten_done = await has_task_entry(s, uid, f"task:ten_orders:{uid}")
-    ref_bonus = (
-        await s.execute(select(WalletEntry).where(WalletEntry.user_id == uid, WalletEntry.kind == "task_ref_bonus").limit(1))
-    ).scalar_one_or_none()
+    ref_bonus_count = (
+        await s.execute(
+            select(func.count(WalletEntry.id)).where(
+                WalletEntry.user_id == uid, WalletEntry.kind == "task_ref_bonus"
+            )
+        )
+    ).scalar() or 0
     channel_configured = bool(cfg.channel_id and cfg.channel_url)
     return [
         {
@@ -564,10 +568,14 @@ async def task_states(s: Session, uid: int) -> list[dict]:
             "hint": None if channel_configured else "Канал пока не настроен администратором — бонус временно недоступен.",
         },
         {
-            "key": "referral", "title": "Первый друг с выплатой", "description": "Пригласи друга. Бонус придёт после его первой реальной выплаты.",
-            "reward": 100, "done": ref_bonus is not None, "progress": min(qualified, 1), "target": 1,
+            "key": "referral", "title": "За каждого друга с первой выплатой",
+            "description": "Приглашай друзей: за каждого BONVERA начислит +100 ₽ после его первой реальной выплаты.",
+            "reward": 100, "done": False, "progress": ref_bonus_count, "target": 0,
             "action": "invite", "channel_url": None, "claimable": False,
-            "hint": "Регистрация друга и клик по ссылке не считаются — нужна именно выплата.",
+            "hint": (
+                f"Уже начислено: {ref_bonus_count} × 100 ₽. За каждого следующего друга — ещё 100 ₽ "
+                "после его первой выплаты. Регистрация и клик по ссылке не считаются."
+            ),
         },
         {
             "key": "first_order", "title": "Первый подтверждённый заказ", "description": "Выполни условие любого предложения и получи подтверждение.",

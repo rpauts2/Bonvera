@@ -74,7 +74,18 @@ HMAC-алгоритмом — локальный backend принимает ег
 DEV-поле показывается только в `import.meta.env.DEV` и только вне Telegram;
 в production-сборке его нет.
 
-Тесты: `.venv/Scripts/python -m pytest tests/` (изолированная sqlite, без сети).
+Тесты:
+
+```bash
+.venv/Scripts/python -m pytest tests/    # backend: 90 тестов, изолированная sqlite, без сети
+cd webapp && npm test                     # frontend: 55 тестов (node --test + Vite SSR)
+cd webapp && npm run build                # tsc --noEmit && vite build
+```
+
+Фронтенд-тесты выполняются без браузера: проектный Vite поднимается в SSR-режиме,
+компоненты рендерятся через `react-dom/server`, проверяется настоящий код приложения
+(`webapp/tests/`). vitest/jsdom не требуются — это сделано намеренно, чтобы набор
+запускался в среде без доступа к npm-реестру.
 
 ## 4. Production-сборка
 
@@ -127,5 +138,5 @@ BONVERA_CHANNEL_URL=https://t.me/your_channel
 - [ ] `BONVERA_CHANNEL_ID`/`BONVERA_CHANNEL_URL` заданы (или бонус честно недоступен).
 - [ ] Партнёрские ссылки добавлены администратором через /admin (87 из 93 офферов
       без ссылок показываются, но оформление заблокировано).
-- [ ] `pytest tests/` зелёный; `npm run build` успешен.
+- [ ] `pytest tests/` зелёный; `npm test` зелёный; `npm run build` успешен.
 - [ ] Публикация приложения — только с отдельного разрешения владельца.

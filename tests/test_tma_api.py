@@ -17,17 +17,25 @@ from sqlalchemy import select
 from bot.config import cfg
 from bot.db import Session, TmaSession, User, init_db
 from bot.tma_auth import create_session, session_user_id, token_hash
-from bot.tma_api import api_limiter, auth_limiter
+from bot.tma_api import api_limiter, auth_limiter, channel_limiter
 from bot.web import make_web
 from conftest import sign_init_data
 
 
 class BotStub:
+    chat_member_status = "member"
+    chat_member_error = False
+
     async def get_me(self):
         return SimpleNamespace(username="bonvera_test_bot")
 
     async def send_message(self, *args, **kwargs):
         pass
+
+    async def get_chat_member(self, chat_id, user_id):
+        if self.chat_member_error:
+            raise RuntimeError("telegram unavailable")
+        return SimpleNamespace(status=self.chat_member_status)
 
 
 @pytest.fixture(scope="module")
@@ -60,9 +68,11 @@ def client(loop, db):
 def _reset_limiters():
     auth_limiter.hits.clear()
     api_limiter.hits.clear()
+    channel_limiter.hits.clear()
     yield
     auth_limiter.hits.clear()
     api_limiter.hits.clear()
+    channel_limiter.hits.clear()
 
 
 def init_data_for(tg_id: int, username: str = "testuser", first_name: str = "Test",

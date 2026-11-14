@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import select, func
 from bot.config import cfg
 from bot.db import *
+from bot.bonuses import order_bonuses
 from bot.proofs import proof_requirements, proof_progress, proofs_complete
 from bot.finance_rules import clawback_withdrawal_action
 
@@ -148,8 +149,13 @@ async def confirm(bot, s, a, network_payout=None, actor_id=None, comment=""):
                     s.add(WalletEntry(user_id=ref.id, amount=amount, kind="referral", ref=f"ref:{a.id}", note="Реферальное начисление"))
                     s.add(RefAcc(referrer_id=ref.id, referee_id=u.id, app_id=a.id, amount=amount))
                     referral_notice = (ref.id, f"👥 По заявке друга начислено {amount} ₽. Баланс: {ref.balance} ₽")
+    bonuses = await order_bonuses(s, u.id)
     await s.commit()
     if referral_notice:
         await notify(bot, *referral_notice)
-    await notify(bot, u.id, f"✅ <b>Заявка #{a.id} подтверждена!</b>\nНачислено: <b>{cashback} ₽</b>\nДеньги доступны в кошельке: {u.balance} ₽")
+    bonus_line = ""
+    if bonuses:
+        bonus_total = sum(amount for amount, _ in bonuses)
+        bonus_line = f"\n🎁 Бонус за достижение: <b>+{bonus_total} ₽</b>"
+    await notify(bot, u.id, f"✅ <b>Заявка #{a.id} подтверждена!</b>\nНачислено: <b>{cashback} ₽</b>{bonus_line}\nДеньги доступны в кошельке: {u.balance} ₽")
     return True

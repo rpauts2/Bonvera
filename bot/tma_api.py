@@ -11,8 +11,10 @@ from pathlib import Path
 
 from aiohttp import web
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from bot import services
+from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
 from bot.db import App, Bank, DealEvent, Offer, PayoutEvent, PayoutReq, Session, User
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
@@ -56,6 +58,7 @@ class RateLimiter:
 
 auth_limiter = RateLimiter(20)
 api_limiter = RateLimiter(240)
+channel_limiter = RateLimiter(10)
 
 BOT_KEY = web.AppKey("bot")
 _BOT_USERNAME: str | None = None
@@ -532,6 +535,62 @@ async def withdrawals_cancel(request):
     return ok(view)
 
 
+async def tasks_list(request):
+    async with Session() as s:
+        return ok(await services.task_states(s, request["uid"]))
+
+
+async def _channel_task(s: Session, uid: int) -> dict:
+    tasks = await services.task_states(s, uid)
+    return next(t for t in tasks if t["key"] == "channel")
+
+
+async def tasks_channel_check(request):
+    uid = request["uid"]
+    if not (cfg.channel_id and cfg.channel_url):
+        return err("channel_not_configured", "Канал пока не настроен администратором — бонус временно недоступен.", 409)
+    if not channel_limiter.allow(f"u{uid}"):
+        return err("rate_limited", "Слишком много проверок. Подожди немного.", 429)
+    async with Session() as s:
+        if await services.has_task_entry(s, uid, f"task:channel:{uid}"):
+            return ok(await _channel_task(s, uid))
+        chat_id = int(cfg.channel_id) if cfg.channel_id.lstrip("-").isdigit() else cfg.channel_id
+        try:
+            member = await request.app[BOT_KEY].get_chat_member(chat_id, uid)
+        except Exception:
+            return err("channel_unavailable", "Не удалось проверить подписку. Попробуй позже.", 502)
+        if getattr(member, "status", None) not in ("member", "administrator", "creator"):
+            return err("not_subscribed", "Подписка не найдена. Подпишись на канал и проверь ещё раз.", 400)
+        try:
+            await grant_bonus(s, uid, CHANNEL_BONUS, "task_channel", f"task:channel:{uid}", "Бонус за подписку на канал")
+            await s.commit()
+        except IntegrityError:
+            # A concurrent check already credited the same unique ref.
+            await s.rollback()
+        return ok(await _channel_task(s, uid))
+
+
+async def friends(request):
+    async with Session() as s:
+        return ok(await services.friends_info(s, request["uid"], await bot_username(request)))
+
+
+async def achievements_list(request):
+    async with Session() as s:
+        return ok(await services.achievements(s, request["uid"]))
+
+
+async def leaderboard(request):
+    lb_type = request.query.get("type", "orders")
+    period = request.query.get("period", "month")
+    if lb_type not in ("orders", "friends"):
+        return err("bad_type", "Неизвестный тип рейтинга.")
+    if period not in ("month", "all"):
+        return err("bad_period", "Неизвестный период рейтинга.")
+    async with Session() as s:
+        return ok(await services.leaderboard(s, request["uid"], lb_type, period))
+
+
 async def spa_index(request):
     dist = ROOT / "webapp" / "dist"
     index = dist / "index.html"
@@ -569,6 +628,11 @@ def setup_tma(app: web.Application, bot):
     r.add_get("/api/v1/withdrawals", withdrawals_list)
     r.add_post("/api/v1/withdrawals", withdrawals_create)
     r.add_post("/api/v1/withdrawals/{id}/cancel", withdrawals_cancel)
+    r.add_get("/api/v1/tasks", tasks_list)
+    r.add_post("/api/v1/tasks/channel/check", tasks_channel_check)
+    r.add_get("/api/v1/friends", friends)
+    r.add_get("/api/v1/achievements", achievements_list)
+    r.add_get("/api/v1/leaderboard", leaderboard)
 
     assets = ROOT / "assets"
     if assets.exists():

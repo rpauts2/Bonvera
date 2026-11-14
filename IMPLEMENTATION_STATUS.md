@@ -59,6 +59,7 @@
 - [x] B: дизайн-система BONVERA и каркас frontend (`webapp/`)
 - [x] C: backend API — initData HMAC, сессии, профиль, dashboard, rate limiting (53/53 тестов)
 - [x] D+E: каталог, заявки, доказательства (приватное хранилище), кошелёк, вывод, /admin-просмотр TMA-файлов (69/69 тестов)
+- [x] F: 4 бонуса (+20/+100/+10/+500), рефералы, 2 рейтинга, антинакрутка (81/81 тестов)
 
 ## Этап B — frontend-каркас (выполнен)
 
@@ -92,9 +93,18 @@
 - Исправлен существующий баг HEAD: `bot/admin.py` импортировал `CAT_RU` из `bot.ui` (там его нет) — бот не запускался; теперь `CAT_RU` берётся из `bot.db` через существующий импорт. Все модули бота импортируются.
 - Тесты: `tests/test_tma_deals.py` — 16 интеграционных (фильтры каталога, все гейты take, владение, загрузка/дедуп/стриминг, submit/repeat/incomplete, полный цикл кошелёк→вывод→отмена с проверкой проводок). Итог: **69 passed** (21 baseline + 48 новых).
 
-## Незавершённые задачи (этапы F–H)
+## Этап F — бонусы, рефералы, рейтинги (выполнен)
 
-- [ ] F: 4 бонуса (+20/+100/+10/+500), рефералы, прогресс, 2 рейтинга, антинакрутка
+- `bot/bonuses.py`: `grant_bonus()` — идемпотентное начисление (exists-check по уникальному `WalletEntry.ref` → row lock пользователя → banned-гейт → проводка; коммитит вызывающий). Уникальность ref — финальный барьер от гонок: при параллельных запросах второй коммит падает с IntegrityError и откатывается.
+- **+10 ₽ первый заказ / +500 ₽ десятый**: `order_bonuses()` вызывается в `logic.confirm()` ДО коммита (счётчик CONFIRMED+PAID включает текущую сделку; отклонённые/отменённые/истёкшие не считаются). Refs `task:first_order:{uid}`, `task:ten_orders:{uid}`; kinds `task_first_order`/`task_ten_orders`. Бонусная строка добавлена в уведомление о подтверждении.
+- **+100 ₽ за друга**: `referral_payout_bonus()` вызывается в `admin.paid()` ДО коммита — только после ПЕРВОЙ фактической выплаты друга (ровно один paid PayoutReq), реферер не забанен, не self-referral; row lock друга сериализует параллельные paid(). Ref `task:ref_bonus:{friend_id}`, kind `task_ref_bonus`, заметка БЕЗ идентификатора друга; в API-ответах ref этого kind скрыт (не раскрывает Telegram ID друга). Уведомление рефереру после коммита. Регистрация/клик/старт оффера/подтверждение сами по себе бонус не дают.
+- **+20 ₽ подписка**: POST /tasks/channel/check — 409 `channel_not_configured` без BONVERA_CHANNEL_ID/URL; `getChatMember` (member/administrator/creator), ошибка Telegram → 502, не подписан → 400; начисление один раз (ref `task:channel:{uid}`), гонка параллельных проверок → IntegrityError → откат без двойного начисления; отдельный rate limit 10/мин. Ответ — обновлённый TaskState (контракт Tasks.tsx).
+- REF_PERCENT не изменён: комиссия `referral` (ref `ref:{app_id}` + RefAcc) и бонус `task_ref_bonus` — разные kinds/refs, в истории раздельно (тест проверяет обе проводки).
+- GET /tasks (4 постоянных задания, без ежедневных), GET /friends (ref-ссылка `/start ref_<id>`, invited/qualified, раздельные суммы комиссии и бонусов), GET /achievements (6 достижений), GET /leaderboard?type=orders|friends&period=month|all — только реальные результаты (подтверждённые заказы по reviewed_at; друзья с фактической paid-выплатой по paid_at), забаненные исключены, топ-20 + место пользователя, display только `@username` или «Участник N» — никаких Telegram ID/телефонов/имён.
+- Тесты: `tests/test_tma_bonuses.py` — 12 интеграционных (+10 через полный API-цикл и повтор без начисления, +500 на 10-м и без двойного на 11-м, +100 только первая выплата/повтор/вторая выплата, guards без реферера/self/banned, сквозной хук через реальный `admin.paid()` с fake-callback, +20 один раз/не настроен/не подписан/ошибка Telegram, анонимизация и периоды обоих рейтингов, контракты tasks/friends/achievements, раздельность REF_PERCENT и +100). Обновлен кошелёк-тест D+E под реальный бонус +10 (510 ₽). Итог: **81 passed** (21 baseline + 60 новых). Frontend-сборка успешна.
+
+## Незавершённые задачи (этапы G–H)
+
 - [ ] G: запуск Mini App из бота (кнопка /start, menu button), .env.example, Docker multi-stage
 - [ ] H: тесты (список §21), документация, инструкции BotFather/HTTPS
 
@@ -106,4 +116,4 @@
 
 ## Следующий конкретный шаг
 
-Этап F: `bot/bonuses.py` (идемпотентный grant через WalletEntry с уникальными ref), хуки +10/+500 в `logic.confirm()` до коммита и +100 в `admin.paid()` только после первой фактической выплаты друга; POST /tasks/channel/check (getChatMember, +20, один раз, без начисления при ненастроенном канале); GET /tasks, /friends, /leaderboard (2 типа × 2 периода, анонимизация), /achievements; антинакрутка; REF_PERCENT не меняется.
+Этап G: кнопка Mini App в /start и menu button при заданном WEBAPP_URL (bot/user.py, bot/__main__.py); дополнения .env.example (WEBAPP_URL, BONVERA_CHANNEL_ID/URL, BONVERA_SUPPORT_URL, TMA_SESSION_HOURS); Dockerfile multi-stage со сборкой frontend внутри образа; инструкции BotFather/HTTPS/local dev; scripts/dev_initdata.py для локальной разработки.

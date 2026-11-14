@@ -11,6 +11,7 @@ from bot.config import cfg
 from bot.db import *
 from bot.ui import ik
 from bot.logic import notify, mfo_ready, phone_decrypt
+from bot.bonuses import referral_payout_bonus
 from bot.proofs import proofs_complete, proof_requirements, awaiting_admin_review
 from bot.offer_rules import bk_approval_must_be_reset
 
@@ -277,8 +278,12 @@ async def paid(c: CallbackQuery, bot: Bot):
             comment = "Администратор подтвердил фактический перевод"
         old = p.status; p.status, p.paid_at, p.updated_at, p.processed_by = "paid", datetime.utcnow(), datetime.utcnow(), c.from_user.id
         s.add(PayoutEvent(payout_id=p.id, actor_id=c.from_user.id, event="paid", from_status=old, to_status="paid", comment=comment))
+        ref_bonus = await referral_payout_bonus(s, p)
         await s.commit()
         await notify(bot, p.user_id, f"💸 <b>Перевод {p.amount} ₽ выполнен</b> по заявке на вывод #{p.id}.")
+        if ref_bonus:
+            referrer_id, bonus_amount = ref_bonus
+            await notify(bot, referrer_id, f"🎁 <b>+{bonus_amount} ₽ за друга!</b> Твой друг получил первую выплату — бонус зачислен в кошелёк.")
     await c.message.edit_text(f"Запрос на вывод #{pid}: перевод отмечен выполненным.")
     await c.answer()
 

@@ -127,7 +127,8 @@ def entry_view(e: WalletEntry) -> dict:
         "amount": int(e.amount),
         "kind": e.kind,
         "kind_ru": KIND_RU.get(e.kind, e.kind),
-        "ref": e.ref,
+        # task_ref_bonus refs embed the friend's Telegram ID; never expose it.
+        "ref": "" if e.kind == "task_ref_bonus" else e.ref,
         "note": e.note or "",
         "created": iso(e.created),
     }
@@ -726,6 +727,46 @@ async def friends_info(s: Session, uid: int, bot_username: str | None) -> dict:
         "ref_percent": cfg.ref_pct,
         "history": [entry_view(e) for e in history],
     }
+
+
+async def leaderboard(s: Session, uid: int, lb_type: str, period: str) -> dict:
+    """Real results only: confirmed orders / friends with an actual paid payout.
+    Banned users are excluded; display is @username or an anonymized label —
+    never Telegram IDs, phones or real names."""
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if lb_type == "orders":
+        stmt = select(App.user_id, func.count(App.id)).where(App.status.in_([CONFIRMED, PAID])).group_by(App.user_id)
+        if period == "month":
+            stmt = stmt.where(App.reviewed_at >= month_start)
+        rows = (await s.execute(stmt)).all()
+    else:
+        stmt = (
+            select(User.referrer_id, func.count(func.distinct(PayoutReq.user_id)))
+            .join(User, User.id == PayoutReq.user_id)
+            .where(PayoutReq.status == "paid", User.referrer_id.isnot(None))
+            .group_by(User.referrer_id)
+        )
+        if period == "month":
+            stmt = stmt.where(PayoutReq.paid_at >= month_start)
+        rows = (await s.execute(stmt)).all()
+    values = {int(r[0]): int(r[1]) for r in rows if r[0] is not None and r[1] > 0}
+    users = (await s.execute(select(User).where(User.id.in_(list(values))))).scalars().all() if values else []
+    by_id = {u.id: u for u in users}
+    ranked = sorted(
+        ((u, v) for u, v in values.items() if u in by_id and not by_id[u].banned),
+        key=lambda x: (-x[1], x[0]),
+    )
+    top = []
+    for i, (user_id, value) in enumerate(ranked[:20]):
+        u = by_id[user_id]
+        top.append({
+            "rank": i + 1,
+            "display": f"@{u.username}" if u.username else f"Участник {i + 1}",
+            "value": value,
+            "is_me": user_id == uid,
+        })
+    me_rank = next((i + 1 for i, (user_id, _) in enumerate(ranked) if user_id == uid), None)
+    return {"period": period, "rows": top, "me": {"rank": me_rank, "value": values.get(uid, 0)}}
 
 
 async def meta_info(s: Session, uid: int, bot_username: str | None) -> dict:

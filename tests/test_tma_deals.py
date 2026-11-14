@@ -325,9 +325,10 @@ def test_wallet_withdrawal_cancel_cycle(loop, client, offers):
 
     status, body = get_json(loop, client, "/api/v1/wallet", token)
     assert status == 200
-    assert body["data"]["summary"]["available"] == 500
+    assert body["data"]["summary"]["available"] == 510  # 500 cashback + 10 first-order bonus
     kinds = [e["kind"] for e in body["data"]["entries"]]
     assert "cashback" in kinds
+    assert "task_first_order" in kinds
 
     status, body = post_json(loop, client, "/api/v1/withdrawals", token, {"amount": 100, "bank": "Т-Банк", "phone": "+79991234567"})
     assert status == 400 and body["err"]["code"] == "bad_amount"
@@ -338,18 +339,18 @@ def test_wallet_withdrawal_cancel_cycle(loop, client, offers):
     assert body["data"]["status"] == "pending" and body["data"]["can_cancel"] is True
 
     status, body = get_json(loop, client, "/api/v1/wallet", token)
-    assert body["data"]["summary"]["available"] == 0
+    assert body["data"]["summary"]["available"] == 10
     assert body["data"]["summary"]["reserved"] == 500
 
     status, body = get_json(loop, client, "/api/v1/withdrawals", token)
     assert body["data"]["requests"][0]["id"] == pid
-    assert body["data"]["available"] == 0
+    assert body["data"]["available"] == 10
 
     status, body = post_json(loop, client, f"/api/v1/withdrawals/{pid}/cancel", token)
     assert status == 200 and body["data"]["status"] == "cancelled"
 
     status, body = get_json(loop, client, "/api/v1/wallet", token)
-    assert body["data"]["summary"]["available"] == 500
+    assert body["data"]["summary"]["available"] == 510
     assert body["data"]["summary"]["reserved"] == 0
     kinds = [e["kind"] for e in body["data"]["entries"]]
     assert kinds.count("withdraw_request") == 1

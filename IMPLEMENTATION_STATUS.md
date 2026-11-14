@@ -56,22 +56,33 @@
 - [x] Подключение GitHub, ветка feat/bonvera-mini-app-v2, проверка remote
 - [x] Аудит кода и карта функций
 - [x] Baseline-тесты: 21/21 passed
+- [x] B: дизайн-система BONVERA и каркас frontend (`webapp/`)
 
-## Незавершённые задачи (этапы B–H)
+## Этап B — frontend-каркас (выполнен)
 
-- [ ] B: дизайн-система BONVERA и каркас frontend (5 вкладок + кошелёк + доп. страницы)
-- [ ] C: backend API — Telegram-авторизация (initData), профиль, dashboard
+- Стек: React 19 + TypeScript (strict) + Vite 7 (base `/app/`), Tailwind CSS v4 (@theme-токены), framer-motion установлен, react-router-dom 7 (basename `/app`, lazy-маршруты).
+- Дизайн: тёмная «премиальная игровая» финансовая тема (abyss/navy + royal/electric + gold), без маскотов и персонажей; safe-area, Telegram SDK (ready/expand/fullscreen ≥8.0, BackButton, HapticFeedback), шрифт Manrope.
+- 18 маршрутов: Home (dashboard), Tasks (4 бонуса), Catalog (поиск/фильтры/сортировки), Friends (ref-ссылка, +100 и REF_PERCENT раздельно), Profile, Wallet (6 сумм), OfferPage (условия, МФО/БК-предупреждения, блокировки без ссылки/одобрения/возраста), MyApps, AppDetail (таймлайн, мультизагрузка доказательств: превью, удаление до отправки, прогресс XHR, лимиты 10 файлов/10 МБ, retry), History, Withdraw (СБП, ручной перевод, отмена), Achievements, Leaderboard (2 типа × 2 периода), Settings (СБП), Notifications, Support (FAQ), Rules (риски честно).
+- API-контракт зафиксирован в `webapp/src/lib/types.ts`; клиент `api.ts` (Bearer-сессия в sessionStorage, единый JSON-конверт, обработка 401/ошибок сети), `useLoad` hook, `uploadWithProgress`.
+- Авторизация клиента: initData → POST /auth/telegram; DEV-режим — вставка initData в ErrorScreen (без production-бэкдоров).
+- Сборка: `npm run build` (tsc --noEmit && vite build) — **успешно**, 69 модулей, code-splitting по страницам (2026-11-14).
+- Backend пока не реализован: страницы работают против контракта; данные появятся после этапа C.
+
+## Незавершённые задачи (этапы C–H)
+
+- [ ] C: backend API — Telegram-авторизация (initData HMAC + auth_date), сессии, профиль, dashboard, rate limiting
 - [ ] D: каталог 93 офферов — поиск/фильтры/сортировки, детали, изображения
-- [ ] E: заявки, доказательства (загрузка файлов), холды, кошелёк, вывод, история
+- [ ] E: заявки, доказательства (приватное хранилище), холды, кошелёк, вывод, история
 - [ ] F: 4 бонуса (+20/+100/+10/+500), рефералы, прогресс, 2 рейтинга, антинакрутка
-- [ ] G: запуск Mini App из бота (кнопка /start, menu button), WebApp SDK
-- [ ] H: тесты (список §21), документация, .env.example, инструкции BotFather/HTTPS
+- [ ] G: запуск Mini App из бота (кнопка /start, menu button), .env.example, Docker multi-stage
+- [ ] H: тесты (список §21), документация, инструкции BotFather/HTTPS
 
 ## Известные ограничения
 
 - Production-credentials (BOT_TOKEN, ADMINS, DB, секреты, WEBAPP_URL, канал) отсутствуют в среде разработки — код интеграции реализуется, требуемые настройки фиксируются в .env.example и документации.
 - Реальные партнёрские ссылки для 87 офферов должен добавить администратор.
+- Frontend собран и типобезопасен, но ещё не проверен в реальном Telegram WebView (нет production-бота в среде разработки); проверка в Telegram — этап H после развёртывания с credentials.
 
 ## Следующий конкретный шаг
 
-Запустить baseline-тесты (`pytest tests/` в .venv), зафиксировать результат, затем этап C (авторизация + API-каркас) параллельно с этапом B (каркас frontend).
+Этап C: модуль проверки initData (HMAC-SHA256 по официальному алгоритму, auth_date, запрет дубликатов ключей), additive-миграция 0005 (сессии; обновить тест головы Alembic), сессии с истечением, `/api/v1` в `bot/web.py:make_web` (auth/me/dashboard/meta), rate limiting и единый JSON-конверт.

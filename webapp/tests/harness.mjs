@@ -132,7 +132,7 @@ export async function renderPage(file, { path = "/", wrap } = {}) {
  * The Telegram handshake cannot run outside Telegram, so the session context
  * is filled directly — the pages themselves are the real ones.
  */
-export async function renderPageAsUser(file, { path = "/", user = userStub() } = {}) {
+export async function renderPageAsUser(file, { path = "/", user = userStub(), props } = {}) {
   const React = await import("react");
   const { MemoryRouter } = await import("react-router-dom");
   const mod = await loadModule(file);
@@ -153,7 +153,7 @@ export async function renderPageAsUser(file, { path = "/", user = userStub() } =
     React.createElement(
       SessionContext.Provider,
       { value: session },
-      React.createElement(Page),
+      React.createElement(Page, props),
     ),
   );
   return render(tree);
@@ -202,6 +202,60 @@ export function userStub(overrides = {}) {
     created: "2026-11-01T10:00:00Z",
     confirmed_orders: 3,
     level: 2,
+    ...overrides,
+  };
+}
+
+/** A dashboard payload stub matching the Dashboard contract. */
+export function dashboardStub(overrides = {}) {
+  return {
+    wallet: {
+      available: 0,
+      pending_setup: 0,
+      review: 0,
+      hold: 0,
+      reserved: 0,
+      paid_total: 0,
+      referral_earned: 0,
+      min_withdraw: 300,
+    },
+    confirmed_orders: 0,
+    ten_progress: 0,
+    tasks_done: 0,
+    tasks_total: 4,
+    referral: { invited: 0, qualified: 0, earned: 0 },
+    ref_link: "https://t.me/bonvera_test_bot?start=ref_1",
+    channel_url: null,
+    popular_offers: [],
+    achievements_preview: [],
+    recent_events: [],
+    unread_notifications: 0,
+    ...overrides,
+  };
+}
+
+/** An achievement stub matching the Achievement contract. */
+export function achievementStub(overrides = {}) {
+  return {
+    key: "first_order",
+    title: "Первое предложение",
+    description: "Оформи любое предложение и получи +10 ₽",
+    icon: "gift",
+    unlocked: false,
+    unlocked_at: null,
+    ...overrides,
+  };
+}
+
+/** A notification stub matching the NotificationItem contract. */
+export function eventStub(overrides = {}) {
+  return {
+    id: "deal:1",
+    kind: "deal",
+    title: "Заявка #1",
+    text: "Заявка взята в работу",
+    created: "2026-11-10T12:00:00Z",
+    app_id: 1,
     ...overrides,
   };
 }

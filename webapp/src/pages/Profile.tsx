@@ -33,7 +33,7 @@ export default function Profile() {
           <div className="min-w-0 flex-1">
             <div className="truncate text-lg font-extrabold">{user.name ?? "Игрок"}</div>
             {user.username && <div className="truncate text-xs text-electric">@{user.username}</div>}
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-indigo-300/60">
+            <div className="mt-1 flex items-center gap-2 text-[12px] text-indigo-300/75">
               <span className="rounded-full border border-royal/30 bg-royal/15 px-2 py-0.5 font-bold text-royal-soft">
                 Уровень {user.level}
               </span>
@@ -46,11 +46,11 @@ export default function Profile() {
       <section className="mt-3 grid grid-cols-2 gap-3 px-5">
         <div className="card-glass p-4 text-center">
           <div className="text-xl font-extrabold text-gold-gradient">{rub(user.balance)}</div>
-          <div className="mt-1 text-[11px] text-indigo-300/60">баланс кошелька</div>
+          <div className="mt-1 text-[12px] text-indigo-300/75">баланс кошелька</div>
         </div>
         <div className="card-glass p-4 text-center">
           <div className="text-xl font-extrabold text-emerald-glow">{user.confirmed_orders}</div>
-          <div className="mt-1 text-[11px] text-indigo-300/60">подтверждённых заказов</div>
+          <div className="mt-1 text-[12px] text-indigo-300/75">подтверждённых заказов</div>
         </div>
       </section>
 
@@ -67,7 +67,7 @@ export default function Profile() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-bold">{m.label}</div>
-              <div className="truncate text-[11px] text-indigo-300/50">{m.hint}</div>
+              <div className="truncate text-[12px] text-indigo-300/70">{m.hint}</div>
             </div>
             <Icon name="chevron-right" className="h-4 w-4 shrink-0 text-indigo-300/40" />
           </Link>
@@ -84,7 +84,7 @@ export default function Profile() {
         >
           <Icon name="logout" className="h-4 w-4" /> Выйти из сессии
         </button>
-        <p className="mt-3 text-center text-[10px] text-indigo-300/40">
+        <p className="mt-3 text-center text-[12px] text-indigo-300/40">
           ID {user.id} · BONVERA не запрашивает пароли, CVV и коды из SMS
         </p>
       </section>

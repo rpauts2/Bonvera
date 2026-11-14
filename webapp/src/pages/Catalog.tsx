@@ -49,7 +49,7 @@ export default function Catalog() {
 
       <div className="space-y-3 px-5">
         <div className="relative">
-          <Icon name="search" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-300/50" />
+          <Icon name="search" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-300/70" />
           <input
             className="input-dark pl-11"
             placeholder="Поиск по банку или названию…"
@@ -120,12 +120,12 @@ export default function Catalog() {
         )}
         {data && data.length > 0 && (
           <>
-            <div className="grid grid-cols-2 gap-3 px-5">
+            <div className="grid grid-cols-2 gap-3 px-5 sm:grid-cols-3 xl:grid-cols-4">
               {data.map((o) => (
                 <OfferCard key={o.id} offer={o} />
               ))}
             </div>
-            <p className="px-5 pb-6 pt-4 text-[11px] leading-relaxed text-indigo-300/50">
+            <p className="px-5 pb-6 pt-4 text-[12px] leading-relaxed text-indigo-300/70">
               Предложения без партнёрской ссылки показаны, но оформить их нельзя, пока администратор не
               добавит проверенную ссылку. Мы не выдумываем ссылки и условия.
             </p>

@@ -79,12 +79,38 @@ button {
   font-family: inherit;
 }
 
+/*
+ * Нижняя панель измеряет себя и публикует реальную высоту в --tabbar-h,
+ * поэтому отступ под контентом никогда не перекрывает последний блок.
+ */
 .safe-bottom {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h, 84px));
 }
 
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+/*
+ * Общая ширина приложения: узкая колонка на телефоне, шире на десктопе —
+ * иначе в Telegram Desktop остаётся огромное мёртвое поле.
+ */
+.app-shell {
+  width: 100%;
+  max-width: 520px;
+  margin-inline: auto;
+}
+
+@media (min-width: 640px) {
+  .app-shell {
+    max-width: 680px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    max-width: 860px;
+  }
 }
 
 .card-glass {
@@ -221,12 +247,15 @@ button {
   animation: var(--animate-shimmer);
 }
 
+/*
+ * Картинка предложения — ровная подложка без 3D-наклона: наклон выносил
+ * изображение за скруглённые углы карточки и ломал вид бейджей.
+ */
 .offer-3d {
-  transform: perspective(900px) rotateY(-8deg) rotateX(4deg);
   transition: transform 0.25s ease;
 }
 .offer-3d:active {
-  transform: perspective(900px) rotateY(0deg) rotateX(0deg) scale(0.98);
+  transform: scale(0.99);
 }
 
 .no-scrollbar::-webkit-scrollbar {

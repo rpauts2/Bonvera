@@ -95,7 +95,7 @@ export default function Withdraw() {
 
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-bold text-indigo-300/60" htmlFor="wd-amount">
+                  <label className="mb-1.5 block text-[12px] font-bold text-indigo-300/75" htmlFor="wd-amount">
                     Сумма (от {rub(minWd)})
                   </label>
                   <input
@@ -108,7 +108,7 @@ export default function Withdraw() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-bold text-indigo-300/60" htmlFor="wd-bank">
+                  <label className="mb-1.5 block text-[12px] font-bold text-indigo-300/75" htmlFor="wd-bank">
                     Банк получателя
                   </label>
                   <select
@@ -128,7 +128,7 @@ export default function Withdraw() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-bold text-indigo-300/60" htmlFor="wd-phone">
+                  <label className="mb-1.5 block text-[12px] font-bold text-indigo-300/75" htmlFor="wd-phone">
                     Телефон СБП
                   </label>
                   {hasSavedPhone && (
@@ -169,7 +169,7 @@ export default function Withdraw() {
           </section>
 
           <section className="px-5 pt-3">
-            <div className="card-glass flex gap-2.5 p-4 text-[11px] leading-relaxed text-indigo-200/65">
+            <div className="card-glass flex gap-2.5 p-4 text-[12px] leading-relaxed text-indigo-200/65">
               <Icon name="shield" className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
               <span>
                 Выплаты выполняются вручную банковским переводом по СБП после проверки администратором.
@@ -192,15 +192,15 @@ export default function Withdraw() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-extrabold">{rub(w.amount)}</div>
-                      <div className="truncate text-[11px] text-indigo-300/55">
+                      <div className="truncate text-[12px] text-indigo-300/70">
                         {w.bank} · {fmtDateTime(w.created)}
                       </div>
                       {w.paid_at && (
-                        <div className="text-[10px] text-emerald-glow/80">выплачено {fmtDateTime(w.paid_at)}</div>
+                        <div className="text-[12px] text-emerald-glow/80">выплачено {fmtDateTime(w.paid_at)}</div>
                       )}
                     </div>
                     <span
-                      className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                      className={`shrink-0 rounded-full border px-2.5 py-1 text-[12px] font-bold ${
                         w.status === "paid"
                           ? "border-emerald-glow/40 bg-emerald-glow/10 text-emerald-glow"
                           : w.status === "rejected" || w.status === "cancelled"
@@ -212,7 +212,7 @@ export default function Withdraw() {
                     </span>
                   </div>
                   {w.admin_note && (
-                    <div className="mt-2 rounded-xl bg-navy-950/60 p-2.5 text-[11px] text-indigo-200/65">
+                    <div className="mt-2 rounded-xl bg-navy-950/60 p-2.5 text-[12px] text-indigo-200/65">
                       {w.admin_note}
                     </div>
                   )}
@@ -226,7 +226,7 @@ export default function Withdraw() {
             </div>
           )}
           {!hasSavedPhone && (
-            <p className="px-5 pb-6 text-center text-[11px] text-indigo-300/50">
+            <p className="px-5 pb-6 text-center text-[12px] text-indigo-300/70">
               Сохрани банк и телефон в{" "}
               <Link to="/settings" className="font-bold text-electric">
                 настройках СБП

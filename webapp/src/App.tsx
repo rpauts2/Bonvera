@@ -36,7 +36,7 @@ function Shell() {
   if (!user.accepted || !user.adult) return <AcceptGate />;
 
   return (
-    <div className="safe-top mx-auto min-h-screen w-full max-w-[520px]">
+    <div className="safe-top app-shell min-h-screen">
       <BackButtonSync />
       <Suspense fallback={<BootScreen />}>
         <div className={showTabs ? "safe-bottom" : "pb-10"}>

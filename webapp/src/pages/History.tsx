@@ -65,8 +65,8 @@ export default function History() {
             <div key={e.id} className="card-glass flex items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <div className="truncate text-sm font-bold">{e.kind_ru}</div>
-                <div className="truncate text-[11px] text-indigo-300/50">{e.note}</div>
-                <div className="text-[10px] text-indigo-300/40">{fmtDateTime(e.created)}</div>
+                <div className="truncate text-[12px] text-indigo-300/70">{e.note}</div>
+                <div className="text-[12px] text-indigo-300/40">{fmtDateTime(e.created)}</div>
               </div>
               <div
                 className={`shrink-0 text-sm font-extrabold ${

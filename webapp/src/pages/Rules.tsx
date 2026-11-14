@@ -84,7 +84,7 @@ export default function Rules() {
           </section>
         ))}
         <SectionTitle>Важно</SectionTitle>
-        <p className="px-1 text-[11px] leading-relaxed text-indigo-300/50">
+        <p className="px-1 text-[12px] leading-relaxed text-indigo-300/70">
           Условия партнёров могут меняться. Актуальные условия каждого предложения указаны в его карточке
           со ссылкой на источник. Продолжая использовать сервис, ты подтверждаешь, что ознакомлен с
           правилами и принимаешь финансовые риски своих решений.

@@ -35,7 +35,7 @@ export function ErrorScreen({ message }: { message: string }) {
       </button>
       {isDev && (
         <div className="mt-6 w-full max-w-sm space-y-2 text-left">
-          <p className="text-xs text-indigo-300/60">
+          <p className="text-xs text-indigo-300/75">
             DEV: вставь initData, сгенерированный scripts/dev_initdata.py
           </p>
           <textarea

@@ -66,7 +66,7 @@ export default function Tasks() {
 
               {t.target > 1 && (
                 <div className="mt-3">
-                  <div className="mb-1.5 flex justify-between text-[11px] text-indigo-300/60">
+                  <div className="mb-1.5 flex justify-between text-[12px] text-indigo-300/75">
                     <span>Прогресс</span>
                     <span className="font-bold text-electric">
                       {Math.min(t.progress, t.target)}/{t.target}
@@ -76,7 +76,7 @@ export default function Tasks() {
                 </div>
               )}
 
-              {t.hint && <p className="mt-3 text-[11px] leading-relaxed text-gold/80">{t.hint}</p>}
+              {t.hint && <p className="mt-3 text-[12px] leading-relaxed text-gold/80">{t.hint}</p>}
 
               <div className="mt-4">
                 {t.done ? (
@@ -84,24 +84,31 @@ export default function Tasks() {
                     <Icon name="check" className="h-4 w-4" /> Бонус получен
                   </div>
                 ) : t.action === "check_subscription" ? (
-                  <div className="flex gap-2">
-                    {t.channel_url && (
+                  t.channel_url ? (
+                    <div className="flex gap-2">
                       <button className="btn-ghost flex-1" onClick={() => openExternal(t.channel_url!)}>
-                        <Icon name="share" className="h-4 w-4" /> Канал
+                        <Icon name="share" className="h-4 w-4" /> Подписаться
                       </button>
-                    )}
-                    <button
-                      className="btn-primary flex-1"
-                      disabled={checking || !t.channel_url}
-                      onClick={() => {
-                        haptic("medium");
-                        void checkChannel();
-                      }}
-                    >
-                      <Icon name="refresh" className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />
-                      {checking ? "Проверяю…" : "Проверить"}
-                    </button>
-                  </div>
+                      <button
+                        className="btn-primary flex-1"
+                        disabled={checking}
+                        onClick={() => {
+                          haptic("medium");
+                          void checkChannel();
+                        }}
+                      >
+                        <Icon name="refresh" className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />
+                        {checking ? "Проверяю…" : "Проверить"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-gold/25 bg-gold/10 px-4 py-3">
+                      <span className="text-[13px] text-indigo-200/80">Канал откроется позже</span>
+                      <span className="shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2.5 py-1 text-[12px] font-bold text-gold">
+                        Скоро
+                      </span>
+                    </div>
+                  )
                 ) : t.action === "invite" ? (
                   <Link to="/friends" className="btn-primary w-full" onClick={() => haptic("light")}>
                     <Icon name="friends" className="h-4 w-4" /> Пригласить друга
@@ -114,7 +121,7 @@ export default function Tasks() {
               </div>
             </div>
           ))}
-          <p className="px-1 pt-2 text-[11px] leading-relaxed text-indigo-300/50">
+          <p className="px-1 pt-2 text-[12px] leading-relaxed text-indigo-300/70">
             Бонусы зачисляются в реальный баланс кошелька один раз. Повторные проверки и клики не дают
             повторных начислений. Задания не обновляются ежедневно — это постоянные достижения.
           </p>

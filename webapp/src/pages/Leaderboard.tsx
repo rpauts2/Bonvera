@@ -64,7 +64,7 @@ export default function Leaderboard() {
               className={`rounded-full border px-4 py-1.5 text-xs font-bold ${
                 period === p.key
                   ? "border-gold/40 bg-gold/10 text-gold"
-                  : "border-royal/25 bg-navy-900/70 text-indigo-300/60"
+                  : "border-royal/25 bg-navy-900/70 text-indigo-300/75"
               }`}
             >
               {p.label}
@@ -85,7 +85,7 @@ export default function Leaderboard() {
                     <Icon name="trophy" className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-xs text-indigo-300/60">Твоё место</div>
+                    <div className="text-xs text-indigo-300/75">Твоё место</div>
                     <div className="text-lg font-extrabold text-gold-gradient">
                       {data.me.rank != null ? `#${data.me.rank}` : "—"}
                     </div>
@@ -93,7 +93,7 @@ export default function Leaderboard() {
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-extrabold text-electric">{data.me.value}</div>
-                  <div className="text-[11px] text-indigo-300/60">{unit}</div>
+                  <div className="text-[12px] text-indigo-300/75">{unit}</div>
                 </div>
               </div>
             </section>
@@ -124,16 +124,16 @@ export default function Leaderboard() {
                     </span>
                     <div className="min-w-0 flex-1 truncate text-sm font-bold">
                       {r.display}
-                      {r.is_me && <span className="ml-2 text-[10px] font-bold text-electric">это ты</span>}
+                      {r.is_me && <span className="ml-2 text-[12px] font-bold text-electric">это ты</span>}
                     </div>
                     <div className="shrink-0 text-sm font-extrabold text-gold-gradient">
-                      {r.value} <span className="text-[10px] font-semibold text-indigo-300/50">{unit}</span>
+                      {r.value} <span className="text-[12px] font-semibold text-indigo-300/70">{unit}</span>
                     </div>
                   </div>
                 ))}
               </section>
             )}
-            <p className="px-5 pb-6 pt-4 text-[11px] leading-relaxed text-indigo-300/50">
+            <p className="px-5 pb-6 pt-4 text-[12px] leading-relaxed text-indigo-300/70">
               В рейтинге показываются только никнеймы или обезличенные имена. Telegram ID, телефоны и
               другие личные данные не публикуются. Накрутка приводит к блокировке.
             </p>

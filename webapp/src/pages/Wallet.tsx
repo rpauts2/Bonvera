@@ -25,7 +25,7 @@ export default function Wallet() {
               <div className="mt-2 text-4xl font-extrabold text-gold-gradient">
                 {rub(data.summary.available)}
               </div>
-              <div className="mt-1 text-[11px] text-indigo-300/50">
+              <div className="mt-1 text-[12px] text-indigo-300/70">
                 минимальная сумма вывода — {rub(data.summary.min_withdraw)}
               </div>
               <Link to="/withdraw" className="btn-gold mt-4 w-full" onClick={() => haptic("medium")}>
@@ -36,40 +36,40 @@ export default function Wallet() {
 
           <section className="mt-3 grid grid-cols-2 gap-3 px-5">
             <div className="card-glass p-4">
-              <div className="flex items-center gap-1.5 text-[11px] text-indigo-300/60">
+              <div className="flex items-center gap-1.5 text-[12px] text-indigo-300/75">
                 <Icon name="clock" className="h-3.5 w-3.5 text-gold" /> Холд сети
               </div>
               <div className="mt-1 text-lg font-extrabold text-gold">{rub(data.summary.hold)}</div>
-              <div className="mt-0.5 text-[10px] leading-snug text-indigo-300/40">
+              <div className="mt-0.5 text-[12px] leading-snug text-indigo-300/40">
                 ожидание подтверждения партнёрской сетью
               </div>
             </div>
             <div className="card-glass p-4">
-              <div className="flex items-center gap-1.5 text-[11px] text-indigo-300/60">
+              <div className="flex items-center gap-1.5 text-[12px] text-indigo-300/75">
                 <Icon name="shield" className="h-3.5 w-3.5 text-royal-soft" /> На проверке
               </div>
               <div className="mt-1 text-lg font-extrabold text-royal-soft">{rub(data.summary.review)}</div>
-              <div className="mt-0.5 text-[10px] leading-snug text-indigo-300/40">
+              <div className="mt-0.5 text-[12px] leading-snug text-indigo-300/40">
                 заявка у администратора
               </div>
             </div>
             <div className="card-glass p-4">
-              <div className="flex items-center gap-1.5 text-[11px] text-indigo-300/60">
+              <div className="flex items-center gap-1.5 text-[12px] text-indigo-300/75">
                 <Icon name="lock" className="h-3.5 w-3.5 text-electric" /> Зарезервировано
               </div>
               <div className="mt-1 text-lg font-extrabold text-electric">{rub(data.summary.reserved)}</div>
-              <div className="mt-0.5 text-[10px] leading-snug text-indigo-300/40">
+              <div className="mt-0.5 text-[12px] leading-snug text-indigo-300/40">
                 суммы активных заявок на вывод
               </div>
             </div>
             <div className="card-glass p-4">
-              <div className="flex items-center gap-1.5 text-[11px] text-indigo-300/60">
+              <div className="flex items-center gap-1.5 text-[12px] text-indigo-300/75">
                 <Icon name="spark" className="h-3.5 w-3.5 text-emerald-glow" /> Ожидает оформления
               </div>
               <div className="mt-1 text-lg font-extrabold text-emerald-glow">
                 {rub(data.summary.pending_setup)}
               </div>
-              <div className="mt-0.5 text-[10px] leading-snug text-indigo-300/40">
+              <div className="mt-0.5 text-[12px] leading-snug text-indigo-300/40">
                 награды по незавершённым заявкам
               </div>
             </div>
@@ -78,13 +78,13 @@ export default function Wallet() {
           <section className="mt-3 grid grid-cols-2 gap-3 px-5">
             <div className="card-glass p-4 text-center">
               <div className="text-lg font-extrabold text-emerald-glow">{rub(data.summary.paid_total)}</div>
-              <div className="mt-1 text-[11px] text-indigo-300/60">всего выплачено</div>
+              <div className="mt-1 text-[12px] text-indigo-300/75">всего выплачено</div>
             </div>
             <div className="card-glass p-4 text-center">
               <div className="text-lg font-extrabold text-gold-gradient">
                 {rub(data.summary.referral_earned)}
               </div>
-              <div className="mt-1 text-[11px] text-indigo-300/60">заработано на друзьях</div>
+              <div className="mt-1 text-[12px] text-indigo-300/75">заработано на друзьях</div>
             </div>
           </section>
 
@@ -98,7 +98,7 @@ export default function Wallet() {
             Последние операции
           </SectionTitle>
           {data.entries.length === 0 ? (
-            <p className="px-5 pb-6 text-sm text-indigo-300/60">
+            <p className="px-5 pb-6 text-sm text-indigo-300/75">
               Операций пока нет. Выполни первое предложение — начисление появится здесь.
             </p>
           ) : (
@@ -107,8 +107,8 @@ export default function Wallet() {
                 <div key={e.id} className="card-glass flex items-center justify-between gap-3 p-4">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-bold">{e.kind_ru}</div>
-                    <div className="truncate text-[11px] text-indigo-300/50">{e.note}</div>
-                    <div className="text-[10px] text-indigo-300/40">{fmtDateTime(e.created)}</div>
+                    <div className="truncate text-[12px] text-indigo-300/70">{e.note}</div>
+                    <div className="text-[12px] text-indigo-300/40">{fmtDateTime(e.created)}</div>
                   </div>
                   <div
                     className={`shrink-0 text-sm font-extrabold ${

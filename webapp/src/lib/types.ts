@@ -189,8 +189,14 @@ export interface Dashboard {
   tasks_done: number;
   tasks_total: number;
   referral: { invited: number; qualified: number; earned: number };
+  /** Персональная реферальная ссылка для шеринга с главной. */
+  ref_link: string;
+  /** Официальный канал, если он настроен. */
+  channel_url: string | null;
   popular_offers: OfferCard[];
   achievements_preview: Achievement[];
+  /** Последние события пользователя (заявки, выплаты, бонусы). */
+  recent_events: NotificationItem[];
   unread_notifications: number;
 }
 

@@ -58,7 +58,7 @@ export default function Support() {
               <span className="text-sm font-bold">{f.q}</span>
               <Icon
                 name="chevron-right"
-                className={`h-4 w-4 shrink-0 text-indigo-300/50 transition-transform ${open === i ? "rotate-90" : ""}`}
+                className={`h-4 w-4 shrink-0 text-indigo-300/70 transition-transform ${open === i ? "rotate-90" : ""}`}
               />
             </button>
             {open === i && (
@@ -82,7 +82,7 @@ export default function Support() {
                 чат бота в Telegram.
               </div>
             )}
-            <p className="mt-3 text-[11px] leading-relaxed text-indigo-300/50">
+            <p className="mt-3 text-[12px] leading-relaxed text-indigo-300/70">
               Поддержка не запрашивает пароли, коды из SMS и данные карт. Если кто-то просит их от имени
               BONVERA — это мошенники.
             </p>

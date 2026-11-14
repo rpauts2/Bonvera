@@ -52,7 +52,7 @@ export default function Settings() {
           <section className="px-5">
             <div className="card-glass space-y-3 p-5">
               <div>
-                <label className="mb-1.5 block text-[11px] font-bold text-indigo-300/60" htmlFor="sbp-bank">
+                <label className="mb-1.5 block text-[12px] font-bold text-indigo-300/75" htmlFor="sbp-bank">
                   Банк получателя
                 </label>
                 <select
@@ -72,7 +72,7 @@ export default function Settings() {
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-[11px] font-bold text-indigo-300/60" htmlFor="sbp-phone">
+                <label className="mb-1.5 block text-[12px] font-bold text-indigo-300/75" htmlFor="sbp-phone">
                   Телефон СБП {user?.sbp_phone_masked && `(сейчас: ${user.sbp_phone_masked})`}
                 </label>
                 <input
@@ -96,7 +96,7 @@ export default function Settings() {
           </section>
 
           <section className="px-5 pt-3">
-            <div className="card-glass flex gap-2.5 p-4 text-[11px] leading-relaxed text-indigo-200/65">
+            <div className="card-glass flex gap-2.5 p-4 text-[12px] leading-relaxed text-indigo-200/65">
               <Icon name="lock" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-glow" />
               <span>
                 Телефон шифруется и используется только для переводов по СБП. Мы никогда не запрашиваем

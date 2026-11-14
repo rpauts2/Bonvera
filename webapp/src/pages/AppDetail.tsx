@@ -139,7 +139,7 @@ export default function AppDetail() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-indigo-300/55">
+                  <div className="truncate text-[12px] font-semibold uppercase tracking-wide text-indigo-300/70">
                     {app.brand}
                   </div>
                   <div className="truncate text-sm font-bold">{app.offer_name}</div>
@@ -150,7 +150,7 @@ export default function AppDetail() {
               </div>
               <div className="mt-4 flex items-center justify-between">
                 <StatusBadge status={app.status} />
-                <span className="text-[11px] text-indigo-300/50">от {fmtDateTime(app.created)}</span>
+                <span className="text-[12px] text-indigo-300/70">от {fmtDateTime(app.created)}</span>
               </div>
               {app.reason && (
                 <div className="mt-3 rounded-2xl border border-rose-alert/30 bg-rose-alert/10 p-3 text-xs leading-relaxed text-rose-alert">
@@ -204,7 +204,7 @@ export default function AppDetail() {
                       <div key={i} className="flex items-center gap-3 text-xs">
                         <span
                           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                            done ? "bg-emerald-glow/15 text-emerald-glow" : "bg-navy-800 text-indigo-300/50"
+                            done ? "bg-emerald-glow/15 text-emerald-glow" : "bg-navy-800 text-indigo-300/70"
                           }`}
                         >
                           <Icon name={done ? "check" : "camera"} className="h-3.5 w-3.5" />
@@ -225,10 +225,10 @@ export default function AppDetail() {
                   <Icon name="doc" className="h-5 w-5 shrink-0 text-electric" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs font-bold">{p.name}</div>
-                    <div className="text-[10px] text-indigo-300/45">{fmtDateTime(p.uploaded_at)}</div>
+                    <div className="text-[12px] text-indigo-300/45">{fmtDateTime(p.uploaded_at)}</div>
                   </div>
                   {p.duplicate_suspected && (
-                    <span className="shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 text-[10px] font-bold text-gold">
+                    <span className="shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 text-[12px] font-bold text-gold">
                       возможен дубликат
                     </span>
                   )}
@@ -267,7 +267,7 @@ export default function AppDetail() {
                             <img src={s.preview} alt={s.file.name} className="h-20 w-full object-cover" />
                           ) : (
                             <div className="flex h-20 w-full items-center justify-center">
-                              <Icon name="doc" className="h-7 w-7 text-indigo-300/50" />
+                              <Icon name="doc" className="h-7 w-7 text-indigo-300/70" />
                             </div>
                           )}
                           <button
@@ -278,7 +278,7 @@ export default function AppDetail() {
                           >
                             <Icon name="cross" className="h-3.5 w-3.5" />
                           </button>
-                          <div className="truncate px-1.5 py-1 text-[9px] text-indigo-300/60">{s.file.name}</div>
+                          <div className="truncate px-1.5 py-1 text-[9px] text-indigo-300/75">{s.file.name}</div>
                         </div>
                       ))}
                     </div>
@@ -286,7 +286,7 @@ export default function AppDetail() {
 
                   {uploading && (
                     <div>
-                      <div className="mb-1 flex justify-between text-[11px] text-indigo-300/60">
+                      <div className="mb-1 flex justify-between text-[12px] text-indigo-300/75">
                         <span>Загрузка…</span>
                         <span className="font-bold text-electric">{progress}%</span>
                       </div>
@@ -312,7 +312,7 @@ export default function AppDetail() {
                     </button>
                   )}
 
-                  <p className="text-[10px] leading-relaxed text-indigo-300/45">
+                  <p className="text-[12px] leading-relaxed text-indigo-300/45">
                     Файлы хранятся приватно и доступны только тебе и администратору. Не загружай
                     паспортные сканы, CVV/CVC, PIN-коды, пароли, коды из SMS и полные номера карт.
                   </p>
@@ -344,9 +344,9 @@ export default function AppDetail() {
                       <div className="min-w-0 pb-1">
                         <div className="text-xs font-bold">{ev.event}</div>
                         {ev.comment && (
-                          <div className="mt-0.5 text-[11px] leading-relaxed text-indigo-200/60">{ev.comment}</div>
+                          <div className="mt-0.5 text-[12px] leading-relaxed text-indigo-200/60">{ev.comment}</div>
                         )}
-                        <div className="mt-0.5 text-[10px] text-indigo-300/40">{fmtDateTime(ev.created)}</div>
+                        <div className="mt-0.5 text-[12px] text-indigo-300/40">{fmtDateTime(ev.created)}</div>
                       </div>
                     </div>
                   ))}

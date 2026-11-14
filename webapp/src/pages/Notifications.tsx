@@ -42,7 +42,7 @@ export default function Notifications() {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-bold">{n.title}</div>
                   <p className="mt-0.5 text-xs leading-relaxed text-indigo-200/65">{n.text}</p>
-                  <div className="mt-1 text-[10px] text-indigo-300/40">{fmtDateTime(n.created)}</div>
+                  <div className="mt-1 text-[12px] text-indigo-300/40">{fmtDateTime(n.created)}</div>
                 </div>
                 {n.app_id != null && (
                   <Icon name="chevron-right" className="mt-1 h-4 w-4 shrink-0 text-indigo-300/40" />

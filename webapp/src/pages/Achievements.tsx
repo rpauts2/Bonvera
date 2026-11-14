@@ -29,15 +29,15 @@ export default function Achievements() {
                 >
                   <Icon name={(a.icon as IconName) ?? "star"} className="h-7 w-7" />
                   {!a.unlocked && (
-                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-navy-950 text-indigo-300/60">
+                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-navy-950 text-indigo-300/75">
                       <Icon name="lock" className="h-3 w-3" />
                     </span>
                   )}
                 </div>
                 <div className="text-xs font-bold leading-tight">{a.title}</div>
-                <p className="text-[10px] leading-relaxed text-indigo-300/55">{a.description}</p>
+                <p className="text-[12px] leading-relaxed text-indigo-300/70">{a.description}</p>
                 <div
-                  className={`text-[10px] font-bold ${
+                  className={`text-[12px] font-bold ${
                     a.unlocked ? "text-emerald-glow" : "text-indigo-300/45"
                   }`}
                 >
@@ -46,7 +46,7 @@ export default function Achievements() {
               </div>
             ))}
           </div>
-          <p className="px-5 pb-6 text-[11px] leading-relaxed text-indigo-300/50">
+          <p className="px-5 pb-6 text-[12px] leading-relaxed text-indigo-300/70">
             Достижения отражают реальные подтверждённые действия: заказы, выплаты и приглашённых друзей.
             Никаких ежедневных заданий и искусственных счётчиков.
           </p>

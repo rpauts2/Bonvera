@@ -38,7 +38,7 @@ export default function Friends() {
                 </div>
                 <div>
                   <div className="text-sm font-bold">+100 ₽ за друга</div>
-                  <div className="text-xs text-indigo-300/60">после его первой выплаченной заявки</div>
+                  <div className="text-xs text-indigo-300/75">после его первой выплаченной заявки</div>
                 </div>
               </div>
               <div className="mt-4 rounded-2xl bg-navy-950/60 p-3">
@@ -65,19 +65,19 @@ export default function Friends() {
           <section className="mt-4 grid grid-cols-2 gap-3 px-5">
             <div className="card-glass p-4 text-center">
               <div className="text-2xl font-extrabold text-electric">{data.invited}</div>
-              <div className="mt-1 text-[11px] text-indigo-300/60">приглашено друзей</div>
+              <div className="mt-1 text-[12px] text-indigo-300/75">приглашено друзей</div>
             </div>
             <div className="card-glass p-4 text-center">
               <div className="text-2xl font-extrabold text-emerald-glow">{data.qualified}</div>
-              <div className="mt-1 text-[11px] text-indigo-300/60">с первой выплатой</div>
+              <div className="mt-1 text-[12px] text-indigo-300/75">с первой выплатой</div>
             </div>
             <div className="card-glass p-4 text-center">
               <div className="text-xl font-extrabold text-gold-gradient">{rub(data.bonus_earned)}</div>
-              <div className="mt-1 text-[11px] text-indigo-300/60">бонусы +100 ₽</div>
+              <div className="mt-1 text-[12px] text-indigo-300/75">бонусы +100 ₽</div>
             </div>
             <div className="card-glass p-4 text-center">
               <div className="text-xl font-extrabold text-gold-gradient">{rub(data.referral_earned)}</div>
-              <div className="mt-1 text-[11px] text-indigo-300/60">комиссия {data.ref_percent}%</div>
+              <div className="mt-1 text-[12px] text-indigo-300/75">комиссия {data.ref_percent}%</div>
             </div>
           </section>
 
@@ -120,8 +120,8 @@ export default function Friends() {
                 <div key={e.id} className="card-glass flex items-center justify-between gap-3 p-4">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-bold">{e.kind_ru}</div>
-                    <div className="truncate text-[11px] text-indigo-300/50">{e.note}</div>
-                    <div className="text-[10px] text-indigo-300/40">{fmtDateTime(e.created)}</div>
+                    <div className="truncate text-[12px] text-indigo-300/70">{e.note}</div>
+                    <div className="text-[12px] text-indigo-300/40">{fmtDateTime(e.created)}</div>
                   </div>
                   <div className="shrink-0 text-sm font-extrabold text-emerald-glow">+{rub(e.amount)}</div>
                 </div>

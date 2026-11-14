@@ -87,11 +87,11 @@ export default function MyApps() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-indigo-300/55">
+                  <div className="truncate text-[12px] font-semibold uppercase tracking-wide text-indigo-300/70">
                     {a.brand}
                   </div>
                   <div className="truncate text-sm font-bold">{a.offer_name}</div>
-                  <div className="mt-0.5 text-[10px] text-indigo-300/45">от {fmtDate(a.created)}</div>
+                  <div className="mt-0.5 text-[12px] text-indigo-300/45">от {fmtDate(a.created)}</div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-sm font-extrabold text-gold-gradient">{rub(a.cashback || a.reward)}</div>
@@ -101,10 +101,10 @@ export default function MyApps() {
               <div className="mt-3 flex items-center justify-between">
                 <StatusBadge status={a.status} />
                 {a.status === "new" && !a.submitted && (
-                  <span className="text-[11px] font-bold text-electric">нужны подтверждения</span>
+                  <span className="text-[12px] font-bold text-electric">нужны подтверждения</span>
                 )}
                 {a.status === "hold" && a.hold_until && (
-                  <span className="text-[11px] text-indigo-300/55">холд до {fmtDate(a.hold_until)}</span>
+                  <span className="text-[12px] text-indigo-300/70">холд до {fmtDate(a.hold_until)}</span>
                 )}
               </div>
             </Link>

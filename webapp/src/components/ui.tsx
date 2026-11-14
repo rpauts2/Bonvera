@@ -27,7 +27,7 @@ export function PageHeader({
       )}
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-xl font-extrabold">{title}</h1>
-        {subtitle && <p className="mt-0.5 truncate text-xs text-indigo-300/60">{subtitle}</p>}
+        {subtitle && <p className="mt-0.5 truncate text-xs text-indigo-300/75">{subtitle}</p>}
       </div>
       {right}
     </header>
@@ -50,7 +50,7 @@ export function EmptyState({ icon, title, text }: { icon: IconName; title: strin
         <Icon name={icon} className="h-7 w-7" />
       </div>
       <div className="font-bold">{title}</div>
-      <p className="text-sm leading-relaxed text-indigo-300/60">{text}</p>
+      <p className="text-sm leading-relaxed text-indigo-300/75">{text}</p>
     </div>
   );
 }
@@ -108,7 +108,7 @@ const STATUS_STYLE: Record<AppStatus, { label: string; cls: string }> = {
 export function StatusBadge({ status }: { status: AppStatus }) {
   const s = STATUS_STYLE[status] ?? STATUS_STYLE.expired;
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold ${s.cls}`}>
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[12px] font-bold ${s.cls}`}>
       {s.label}
     </span>
   );

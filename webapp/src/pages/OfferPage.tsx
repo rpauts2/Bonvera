@@ -81,15 +81,15 @@ export default function OfferPage() {
                 <img
                   src={offer.image_url}
                   alt={`${offer.brand} · ${offer.name}`}
-                  className="offer-3d h-full w-full object-cover"
+                  className="h-full w-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-navy-950 via-navy-950/20 to-transparent" />
-                <span className="absolute left-4 top-4 rounded-full border border-royal/30 bg-navy-950/80 px-3 py-1 text-[11px] font-bold text-indigo-200 backdrop-blur">
+                <span className="absolute left-4 top-4 rounded-full border border-royal/30 bg-navy-950/80 px-3 py-1 text-[12px] font-bold text-indigo-200 backdrop-blur">
                   {CAT_LABEL[offer.category] ?? offer.category}
                 </span>
               </div>
               <div className="p-5">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-indigo-300/60">
+                <div className="text-[12px] font-semibold uppercase tracking-wide text-indigo-300/75">
                   {offer.emoji} {offer.brand}
                 </div>
                 <h2 className="mt-1 text-lg font-extrabold leading-snug">{offer.name}</h2>
@@ -98,9 +98,9 @@ export default function OfferPage() {
                     <div className="text-3xl font-extrabold text-gold-gradient">
                       {offer.reward.toLocaleString("ru-RU")} ₽
                     </div>
-                    <div className="text-[11px] text-indigo-300/50">награда за выполнение</div>
+                    <div className="text-[12px] text-indigo-300/70">награда за выполнение</div>
                   </div>
-                  <div className="text-right text-[11px] text-indigo-300/60">
+                  <div className="text-right text-[12px] text-indigo-300/75">
                     <div className="flex items-center justify-end gap-1">
                       <Icon name="clock" className="h-3.5 w-3.5" /> холд {offer.hold_days} дн.
                     </div>
@@ -125,28 +125,28 @@ export default function OfferPage() {
                   Оценивай свои возможности: просрочка ведёт к долгам и ухудшению кредитной истории.
                 </p>
                 {offer.mfo_info && (
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
                     {offer.mfo_info.psk && (
                       <div className="rounded-xl bg-navy-950/60 p-2.5">
-                        <div className="text-indigo-300/50">ПСК</div>
+                        <div className="text-indigo-300/70">ПСК</div>
                         <div className="font-bold text-indigo-100">{offer.mfo_info.psk}</div>
                       </div>
                     )}
                     {offer.mfo_info.rate && (
                       <div className="rounded-xl bg-navy-950/60 p-2.5">
-                        <div className="text-indigo-300/50">Ставка</div>
+                        <div className="text-indigo-300/70">Ставка</div>
                         <div className="font-bold text-indigo-100">{offer.mfo_info.rate}</div>
                       </div>
                     )}
                     {offer.mfo_info.term && (
                       <div className="rounded-xl bg-navy-950/60 p-2.5">
-                        <div className="text-indigo-300/50">Срок</div>
+                        <div className="text-indigo-300/70">Срок</div>
                         <div className="font-bold text-indigo-100">{offer.mfo_info.term}</div>
                       </div>
                     )}
                     {offer.mfo_info.registry && (
                       <div className="rounded-xl bg-navy-950/60 p-2.5">
-                        <div className="text-indigo-300/50">Реестр ЦБ</div>
+                        <div className="text-indigo-300/70">Реестр ЦБ</div>
                         <div className="font-bold text-indigo-100">{offer.mfo_info.registry}</div>
                       </div>
                     )}
@@ -182,7 +182,7 @@ export default function OfferPage() {
                 <div className="card-glass space-y-3 p-5">
                   {offer.verification_steps.map((s, i) => (
                     <div key={i} className="flex gap-3 text-xs leading-relaxed text-indigo-200/75">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-royal/20 text-[11px] font-bold text-royal-soft">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-royal/20 text-[12px] font-bold text-royal-soft">
                         {i + 1}
                       </span>
                       <span className="pt-0.5">{s}</span>
@@ -200,7 +200,7 @@ export default function OfferPage() {
                 {offer.required_proofs.map((p, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-electric/25 bg-electric/10 px-3 py-1.5 text-[11px] font-semibold text-electric"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-electric/25 bg-electric/10 px-3 py-1.5 text-[12px] font-semibold text-electric"
                   >
                     <Icon name="camera" className="h-3.5 w-3.5" /> {p}
                   </span>
@@ -240,13 +240,13 @@ export default function OfferPage() {
 
           {offer.notes && (
             <section className="px-5 pt-4">
-              <p className="whitespace-pre-line text-[11px] leading-relaxed text-indigo-300/55">{offer.notes}</p>
+              <p className="whitespace-pre-line text-[12px] leading-relaxed text-indigo-300/70">{offer.notes}</p>
             </section>
           )}
 
           <section className="px-5 pb-8 pt-5">
             {offer.slots_left_today != null && offer.available && (
-              <p className="mb-2 text-center text-[11px] text-indigo-300/60">
+              <p className="mb-2 text-center text-[12px] text-indigo-300/75">
                 Осталось мест сегодня: <span className="font-bold text-electric">{offer.slots_left_today}</span>
               </p>
             )}
@@ -255,7 +255,7 @@ export default function OfferPage() {
                 <div className="text-sm font-extrabold text-indigo-100">
                   Подтверди возраст для этого предложения
                 </div>
-                <p className="text-[11px] leading-relaxed text-indigo-300/60">
+                <p className="text-[12px] leading-relaxed text-indigo-300/75">
                   Доступный возраст: {offer.age_min}–{offer.age_max} лет. Возраст проверяется на сервере
                   и сохраняется в профиле — вводить его повторно не потребуется.
                 </p>
@@ -296,7 +296,7 @@ export default function OfferPage() {
                 <button className="btn-gold w-full" disabled>
                   <Icon name="lock" className="h-4 w-4" /> Оформление недоступно
                 </button>
-                <p className="text-center text-[11px] leading-relaxed text-indigo-300/60">
+                <p className="text-center text-[12px] leading-relaxed text-indigo-300/75">
                   {ageBlocked
                     ? `Предложение доступно для возраста ${offer.age_min}–${offer.age_max} лет.`
                     : offer.unavailable_reason ??

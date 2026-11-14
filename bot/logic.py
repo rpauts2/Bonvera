@@ -2,6 +2,7 @@ import hashlib, hmac, re, base64
 from cryptography.fernet import Fernet
 from datetime import datetime
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from bot.config import cfg
 from bot.db import *
 from bot.bonuses import order_bonuses
@@ -131,10 +132,13 @@ async def confirm(bot, s, a, network_payout=None, actor_id=None, comment=""):
     a.reviewed_by, a.reviewed_at = actor_id, datetime.utcnow()
     u = (await s.execute(select(User).where(User.id == a.user_id).with_for_update())).scalar_one()
     exists = (await s.execute(select(WalletEntry).where(WalletEntry.ref == f"app:{a.id}"))).scalar_one_or_none()
-    if not exists:
-        # If a previous clawback left a negative wallet, this credit first offsets it.
-        u.balance += cashback
-        s.add(WalletEntry(user_id=u.id, amount=cashback, kind="cashback", ref=f"app:{a.id}", note="Подтверждение оффера"))
+    if exists:
+        # A concurrent confirmation already credited this deal: the status read
+        # above can be stale on databases without row locks (e.g. sqlite).
+        return False
+    # If a previous clawback left a negative wallet, this credit first offsets it.
+    u.balance += cashback
+    s.add(WalletEntry(user_id=u.id, amount=cashback, kind="cashback", ref=f"app:{a.id}", note="Подтверждение оффера"))
     await log_deal_event(s, a.id, actor_id, "confirmed", old_status, CONFIRMED, comment or "Вознаграждение начислено на доступный баланс")
     referral_notice = None
 
@@ -150,7 +154,13 @@ async def confirm(bot, s, a, network_payout=None, actor_id=None, comment=""):
                     s.add(RefAcc(referrer_id=ref.id, referee_id=u.id, app_id=a.id, amount=amount))
                     referral_notice = (ref.id, f"👥 По заявке друга начислено {amount} ₽. Баланс: {ref.balance} ₽")
     bonuses = await order_bonuses(s, u.id)
-    await s.commit()
+    try:
+        await s.commit()
+    except IntegrityError:
+        # Unique-ref backstop: a concurrent confirm already credited this deal
+        # (possible on databases without row locks, e.g. sqlite in tests).
+        await s.rollback()
+        return False
     if referral_notice:
         await notify(bot, *referral_notice)
     bonus_line = ""

@@ -10,7 +10,7 @@ from sqlalchemy import select, func
 from bot.config import cfg
 from bot.db import *
 from bot.ui import ik
-from bot.logic import notify, mfo_ready, phone_decrypt
+from bot.logic import notify, mfo_ready, phone_decrypt, confirm
 from bot.bonuses import referral_payout_bonus
 from bot.proofs import proofs_complete, proof_requirements, awaiting_admin_review
 from bot.offer_rules import bk_approval_must_be_reset
@@ -108,7 +108,10 @@ async def manual_confirm(c: CallbackQuery, bot: Bot):
         credited = await confirm(bot, s, a, None, actor_id=c.from_user.id, comment="Подтверждено администратором вручную")
         if not credited:
             return await c.answer("Сделка уже изменилась или была обработана другим администратором.", show_alert=True)
-    await c.message.edit_caption(caption=f"Заявка #{aid}: подтверждена администратором") if c.message.photo else c.message.edit_text(f"Заявка #{aid}: подтверждена администратором")
+    if c.message.photo:
+        await c.message.edit_caption(caption=f"Заявка #{aid}: подтверждена администратором")
+    else:
+        await c.message.edit_text(f"Заявка #{aid}: подтверждена администратором")
     await c.answer("Начисление проведено")
 
 @r.callback_query(F.data.startswith("adm:hold:"))

@@ -102,14 +102,20 @@ export function tgUserHint() {
   return tg?.initDataUnsafe?.user;
 }
 
+// Native dialogs require Bot API 6.2; on older clients the SDK methods exist
+// but silently no-op (never invoking the callback), so fall back to window.
+function nativeDialogs(): boolean {
+  return Boolean(tg?.isVersionAtLeast("6.2"));
+}
+
 export function showAlert(message: string) {
-  if (tg?.showAlert) tg.showAlert(message);
+  if (tg?.showAlert && nativeDialogs()) tg.showAlert(message);
   else window.alert(message);
 }
 
 export function showConfirm(message: string): Promise<boolean> {
   return new Promise((resolve) => {
-    if (tg?.showConfirm) tg.showConfirm(message, resolve);
+    if (tg?.showConfirm && nativeDialogs()) tg.showConfirm(message, resolve);
     else resolve(window.confirm(message));
   });
 }

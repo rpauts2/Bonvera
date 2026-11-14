@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
-import type { OfferDetail, TakeResult } from "../lib/types";
+import type { OfferDetail, TakeResult, UserProfile } from "../lib/types";
 import { useSession } from "../state/session";
 import { Icon } from "../components/Icon";
 import { ErrorState, ListSkeleton, PageHeader, SectionTitle } from "../components/ui";
@@ -18,9 +18,12 @@ const CAT_LABEL: Record<string, string> = {
 export default function OfferPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useSession();
+  const { user, refresh } = useSession();
   const { data: offer, error, reload } = useLoad<OfferDetail>(`/offers/${id}`);
   const [taking, setTaking] = useState(false);
+  const [needAge, setNeedAge] = useState(false);
+  const [ageInput, setAgeInput] = useState("");
+  const [ageSaving, setAgeSaving] = useState(false);
 
   async function take() {
     if (!offer) return;
@@ -32,10 +35,33 @@ export default function OfferPage() {
       navigate(`/apps/${res.app_id}`);
     } catch (e) {
       hapticNotify("error");
-      showAlert(e instanceof Error ? e.message : "Не удалось создать заявку.");
+      if (e instanceof ApiError && e.code === "age_required") {
+        setNeedAge(true);
+      } else {
+        showAlert(e instanceof Error ? e.message : "Не удалось создать заявку.");
+      }
       void reload();
     } finally {
       setTaking(false);
+    }
+  }
+
+  async function saveAgeAndTake() {
+    const years = Number(ageInput);
+    if (!Number.isInteger(years) || years < 18 || years > 120) {
+      showAlert("Укажи число полных лет от 18 до 120.");
+      return;
+    }
+    setAgeSaving(true);
+    try {
+      await api.put<UserProfile>("/me/age", { years });
+      await refresh();
+      setNeedAge(false);
+      await take();
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось сохранить возраст.");
+    } finally {
+      setAgeSaving(false);
     }
   }
 
@@ -224,7 +250,39 @@ export default function OfferPage() {
                 Осталось мест сегодня: <span className="font-bold text-electric">{offer.slots_left_today}</span>
               </p>
             )}
-            {offer.already_taken ? (
+            {needAge ? (
+              <div className="card-glass space-y-3 p-5">
+                <div className="text-sm font-extrabold text-indigo-100">
+                  Подтверди возраст для этого предложения
+                </div>
+                <p className="text-[11px] leading-relaxed text-indigo-300/60">
+                  Доступный возраст: {offer.age_min}–{offer.age_max} лет. Возраст проверяется на сервере
+                  и сохраняется в профиле — вводить его повторно не потребуется.
+                </p>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={18}
+                  max={120}
+                  className="input-dark w-full"
+                  placeholder="Полных лет, например 25"
+                  value={ageInput}
+                  onChange={(e) => setAgeInput(e.target.value)}
+                  aria-label="Число полных лет"
+                />
+                <button
+                  className="btn-gold w-full"
+                  disabled={ageSaving || taking}
+                  onClick={() => void saveAgeAndTake()}
+                >
+                  <Icon name="check" className="h-4 w-4" />
+                  {ageSaving || taking ? "Проверяю…" : "Подтвердить возраст и оформить"}
+                </button>
+                <button className="btn-ghost w-full text-xs" onClick={() => setNeedAge(false)}>
+                  Отмена
+                </button>
+              </div>
+            ) : offer.already_taken ? (
               <Link to="/apps" className="btn-primary w-full" onClick={() => haptic("light")}>
                 <Icon name="doc" className="h-4 w-4" /> Заявка уже оформлена — открыть
               </Link>

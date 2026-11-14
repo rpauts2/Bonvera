@@ -58,6 +58,7 @@
 - [x] Baseline-тесты: 21/21 passed
 - [x] B: дизайн-система BONVERA и каркас frontend (`webapp/`)
 - [x] C: backend API — initData HMAC, сессии, профиль, dashboard, rate limiting (53/53 тестов)
+- [x] D+E: каталог, заявки, доказательства (приватное хранилище), кошелёк, вывод, /admin-просмотр TMA-файлов (69/69 тестов)
 
 ## Этап B — frontend-каркас (выполнен)
 
@@ -80,10 +81,19 @@
 - Тесты: `tests/conftest.py` (изолированная sqlite + тестовые секреты до импорта bot), `tests/test_tma_auth.py` (14: валидная подпись, tamper, чужой токен, expired/future auth_date, дубликаты, отсутствие hash/user, нецелый ID, порядок полей), `tests/test_tma_api.py` (18: auth→me, 401/403, banned, изоляция пользователей, возраст/СБП-валидация и шифрование, dashboard/meta/notifications, rate limit 429, истёкшая сессия, session helpers, /health, /app).
 - Результат: **53 passed** (`pytest tests/`, 2026-11-14): 21 baseline + 32 новых. Frontend-сборка этапа B не менялась.
 
-## Незавершённые задачи (этапы D–H)
+## Этапы D+E — каталог, заявки, доказательства, кошелёк, вывод (выполнены)
 
-- [ ] D: каталог 93 офферов — поиск/фильтры/сортировки, детали, изображения
-- [ ] E: заявки, доказательства (приватное хранилище), холды, кошелёк, вывод, история
+- Каталог: GET /offers (поиск q, категория, сортировки reward/hold/new, available=1), GET /offers/:id (условия, МФО-реквизиты ПСК/ставка/срок/реестр, чек-листы, разрешено/запрещено), POST /offers/:id/take — серверная перепроверка всей цепочки условий бота (возраст, БК-одобрение, ссылка, bank_taken, MAX_ACTIVE, слоты/день) с машинными кодами ошибок; 87 офферов без ссылок показываются, но оформление заблокировано с честным пояснением.
+- Заявки: GET /apps, GET /apps/:id (прогресс чек-листа, personal_link с HMAC-subid, таймлайн событий, can_upload/can_submit); проверка владения на каждом запросе (чужая заявка → 404).
+- Доказательства: POST /apps/:id/proofs — multipart, до 10 файлов × 10 МБ, whitelist JPEG/PNG/WebP/HEIC/PDF; phash-дедупликация по тем же правилам что и бот (точная копия → 409, расстояние ≤3 → флаг ручной сверки); приватное хранилище `data/tma_proofs` (вне статики, gitignore), потоковая выдача только владельцу через авторизованный GET /apps/:id/proofs/:idx/file (Cache-Control: private, no-store); файлы бота (file_id) тоже стримятся через Bot API. POST /apps/:id/submit — полнота комплекта, защита от повторной отправки, уведомление админов.
+- Кошелёк/вывод: GET /wallet (6 сумм + проводки), GET /wallet/entries, GET /withdrawals, POST /withdrawals (резерв баланса, row lock, идемпотентные проводки withdraw:{id}), POST /withdrawals/:id/cancel (возврат резерва, только pending) — механика идентична боту.
+- /admin: очередь и «Все доказательства» отправляют TMA-файлы через FSInputFile наравне с Telegram file_id.
+- Frontend: OfferPage — встроенный ввод возраста при age_required (PUT /me/age → повтор take), сборка успешна.
+- Исправлен существующий баг HEAD: `bot/admin.py` импортировал `CAT_RU` из `bot.ui` (там его нет) — бот не запускался; теперь `CAT_RU` берётся из `bot.db` через существующий импорт. Все модули бота импортируются.
+- Тесты: `tests/test_tma_deals.py` — 16 интеграционных (фильтры каталога, все гейты take, владение, загрузка/дедуп/стриминг, submit/repeat/incomplete, полный цикл кошелёк→вывод→отмена с проверкой проводок). Итог: **69 passed** (21 baseline + 48 новых).
+
+## Незавершённые задачи (этапы F–H)
+
 - [ ] F: 4 бонуса (+20/+100/+10/+500), рефералы, прогресс, 2 рейтинга, антинакрутка
 - [ ] G: запуск Mini App из бота (кнопка /start, menu button), .env.example, Docker multi-stage
 - [ ] H: тесты (список §21), документация, инструкции BotFather/HTTPS
@@ -96,4 +106,4 @@
 
 ## Следующий конкретный шаг
 
-Этапы D+E: эндпоинты каталога (GET /offers, GET /offers/:id, POST /offers/:id/take с серверной перепроверкой всех условий), заявок (GET /apps, GET /apps/:id), доказательств (POST /apps/:id/proofs — приватное хранилище, phash-дедупликация, совместимость с file_id; POST /apps/:id/submit), кошелька и вывода (GET /wallet, GET /wallet/entries, GET/POST /withdrawals, отмена), просмотр TMA-загрузок в /admin, заполнение `app_view.image_url`, возрастной ввод на OfferPage.
+Этап F: `bot/bonuses.py` (идемпотентный grant через WalletEntry с уникальными ref), хуки +10/+500 в `logic.confirm()` до коммита и +100 в `admin.paid()` только после первой фактической выплаты друга; POST /tasks/channel/check (getChatMember, +20, один раз, без начисления при ненастроенном канале); GET /tasks, /friends, /leaderboard (2 типа × 2 периода, анонимизация), /achievements; антинакрутка; REF_PERCENT не меняется.

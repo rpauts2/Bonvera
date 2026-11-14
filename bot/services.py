@@ -335,7 +335,7 @@ async def create_deal(s: Session, uid: int, oid: int) -> tuple[App | None, str |
     return a, None, None
 
 
-def app_view(s_apps: App, o: Offer | None, events: list[DealEvent]) -> dict:
+def app_view(s_apps: App, o: Offer | None, events: list[DealEvent], bk: Bank | None = None) -> dict:
     a = s_apps
     snap = a.offer_snapshot or {}
     required, received, _missing = proof_progress(a, o)
@@ -367,7 +367,7 @@ def app_view(s_apps: App, o: Offer | None, events: list[DealEvent]) -> dict:
         "brand": snap.get("brand", ""),
         "emoji": snap.get("emoji", "🏦"),
         "category": snap.get("category", ""),
-        "image_url": "",
+        "image_url": offer_image_url(o, bk) if o and bk else "",
         "status": a.status,
         "status_ru": RU.get(a.status, a.status),
         "reward": int(snap.get("reward", 0)),
@@ -414,6 +414,124 @@ def withdrawal_view(p: PayoutReq, events: list[PayoutEvent]) -> dict:
 
 async def has_task_entry(s: Session, uid: int, ref: str) -> WalletEntry | None:
     return (await s.execute(select(WalletEntry).where(WalletEntry.user_id == uid, WalletEntry.ref == ref))).scalar_one_or_none()
+
+
+def image_phash(data: bytes) -> str | None:
+    """Perceptual hash for image evidence; None for PDFs/HEIC/undecodable files."""
+    try:
+        from io import BytesIO
+
+        import imagehash
+        from PIL import Image
+
+        return str(imagehash.phash(Image.open(BytesIO(data)).convert("RGB")))
+    except Exception:
+        return None
+
+
+async def phash_duplicates(s: Session, ph: str) -> tuple[bool, bool, int]:
+    """Same anti-duplicate rule as the bot's proof_got: exact copy rejects,
+    distance <= 3 flags for manual admin review. Returns (exact, suspected, matches)."""
+    import imagehash
+
+    recent = (await s.execute(select(App).order_by(App.id.desc()).limit(500))).scalars().all()
+    candidate = imagehash.hex_to_hash(ph)
+    suspected = False
+    matches = 0
+    for old in recent:
+        hashes = [x.get("hash") for x in (old.proof_files or []) if isinstance(x, dict) and x.get("hash")]
+        if old.proof_hash:
+            hashes.append(old.proof_hash)
+        for old_hash in set(hashes):
+            try:
+                distance = candidate - imagehash.hex_to_hash(old_hash)
+                if distance == 0:
+                    return True, True, matches + 1
+                if distance <= 3:
+                    suspected = True
+                    matches += 1
+            except Exception:
+                pass
+    return False, suspected, matches
+
+
+async def list_apps(s: Session, uid: int) -> list[dict]:
+    apps = (await s.execute(select(App).where(App.user_id == uid).order_by(App.id.desc()))).scalars().all()
+    result = []
+    for a in apps:
+        o = await s.get(Offer, a.offer_id)
+        bk = await s.get(Bank, o.bank_id) if o else None
+        events = (
+            await s.execute(select(DealEvent).where(DealEvent.app_id == a.id).order_by(DealEvent.id.desc()).limit(5))
+        ).scalars().all()
+        result.append(app_view(a, o, list(reversed(events)), bk))
+    return result
+
+
+async def app_detail(s: Session, a: App) -> dict:
+    o = await s.get(Offer, a.offer_id)
+    bk = await s.get(Bank, o.bank_id) if o else None
+    events = (
+        await s.execute(select(DealEvent).where(DealEvent.app_id == a.id).order_by(DealEvent.id))
+    ).scalars().all()
+    return app_view(a, o, list(events), bk)
+
+
+async def create_withdrawal(s: Session, uid: int, amount, bank: str | None, phone: str | None) -> tuple[PayoutReq | None, str | None, str | None]:
+    """Same reserve mechanics as the bot's wd_amt: row lock, idempotent posting."""
+    from bot.logic import phone_decrypt, phone_encrypt, phone_norm, phash
+
+    if not isinstance(amount, int) or isinstance(amount, bool) or amount < cfg.min_wd:
+        return None, "bad_amount", f"Минимальная сумма вывода — {cfg.min_wd} ₽."
+    u = (await s.execute(select(User).where(User.id == uid).with_for_update())).scalar_one_or_none()
+    if u is None:
+        return None, "no_user", "Пользователь не найден."
+    if u.banned:
+        return None, "banned", "Доступ ограничен."
+    if amount > int(u.balance or 0):
+        return None, "insufficient", f"Недостаточно доступных средств: {u.balance} ₽."
+    chosen_bank = (bank or u.sbp_bank or "").strip()
+    if not 2 <= len(chosen_bank) <= 80:
+        return None, "bad_bank", "Укажи корректный банк СБП (2–80 символов)."
+    if phone is not None:
+        normalized = phone_norm(str(phone))
+        if len(normalized) != 11 or not normalized.isdigit():
+            return None, "bad_phone", "Нужен номер телефона из 11 цифр (например, +79991234567)."
+        encrypted = phone_encrypt(normalized)
+    elif u.sbp_phone:
+        encrypted = u.sbp_phone
+    else:
+        return None, "no_phone", "Сначала укажи телефон СБП в настройках или в форме вывода."
+    u.balance -= amount
+    p = PayoutReq(user_id=u.id, amount=amount, phone=encrypted, bank=chosen_bank, status="pending")
+    s.add(p)
+    await s.flush()
+    s.add(WalletEntry(user_id=u.id, amount=-amount, kind="withdraw_request", ref=f"withdraw:{p.id}", note="Резерв под запрос на вывод"))
+    s.add(PayoutEvent(payout_id=p.id, actor_id=u.id, event="created", from_status="", to_status="pending",
+                      comment="Пользователь создал запрос на вывод через Mini App"))
+    await s.commit()
+    return p, None, None
+
+
+async def cancel_withdrawal(s: Session, uid: int, pid: int) -> tuple[PayoutReq | None, str | None, str | None]:
+    """Same refund mechanics as the bot's wd_cancel: pending only, idempotent ref."""
+    u = (await s.execute(select(User).where(User.id == uid).with_for_update())).scalar_one_or_none()
+    p = (await s.execute(select(PayoutReq).where(PayoutReq.id == pid).with_for_update())).scalar_one_or_none()
+    if not u or not p or p.user_id != uid:
+        return None, "not_found", "Запрос на вывод не найден."
+    if p.status != "pending":
+        return None, "not_pending", "Отменить можно только запрос, который ещё не взят в работу."
+    old = p.status
+    p.status, p.updated_at = "cancelled", datetime.utcnow()
+    ref = f"withdraw-cancel:{p.id}"
+    exists = (await s.execute(select(WalletEntry).where(WalletEntry.ref == ref))).scalar_one_or_none()
+    if not exists:
+        u.balance += p.amount
+        s.add(WalletEntry(user_id=u.id, amount=p.amount, kind="withdraw_cancel", ref=ref, note="Возврат пользователю отменённого запроса"))
+    s.add(PayoutEvent(payout_id=p.id, actor_id=u.id, event="cancelled", from_status=old, to_status="cancelled",
+                      comment="Пользователь отменил запрос до взятия в работу (Mini App)"))
+    await s.commit()
+    return p, None, None
 
 
 async def qualified_friends_count(s: Session, uid: int) -> int:

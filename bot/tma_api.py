@@ -5,15 +5,22 @@ Bearer sessions come from bot.tma_auth after HMAC-verified initData.
 """
 import time
 from collections import deque
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
 from aiohttp import web
+from sqlalchemy import select
 
 from bot import services
 from bot.config import cfg
-from bot.db import Session, User
-from bot.logic import phone_encrypt, phone_norm, phash
+from bot.db import App, Bank, DealEvent, Offer, PayoutEvent, PayoutReq, Session, User
+from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
+from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, verify_init_data
+from bot.tma_files import (
+    IMAGE_EXT, MAX_FILES_PER_UPLOAD, FileError, resolve_proof, safe_ext, store_proof,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -204,6 +211,327 @@ async def notifications_read(request):
     return ok({"read": True})
 
 
+async def offers_list(request):
+    q = request.query.get("q", "")[:80]
+    category = request.query.get("category", "")
+    sort = request.query.get("sort", "reward")
+    available_only = request.query.get("available") == "1"
+    async with Session() as s:
+        return ok(await services.list_offers(s, request["uid"], q=q, category=category, sort=sort, available_only=available_only))
+
+
+async def offer_detail(request):
+    try:
+        oid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Предложение не найдено.", 404)
+    async with Session() as s:
+        o = await s.get(Offer, oid)
+        if o is None:
+            return err("not_found", "Предложение не найдено.", 404)
+        detail = await services.offer_detail(s, o, request["uid"])
+    if detail is None:
+        return err("not_found", "Предложение не найдено.", 404)
+    return ok(detail)
+
+
+TAKE_ERROR_STATUS = {
+    "banned": 403, "not_accepted": 403, "no_offer": 404, "no_user": 404,
+    "bank_taken": 409, "max_active": 409, "no_slots": 409, "disabled": 409,
+    "category_closed": 409, "bk_not_approved": 409, "no_link": 409,
+}
+
+
+async def offer_take(request):
+    try:
+        oid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Предложение не найдено.", 404)
+    async with Session() as s:
+        a, code, msg = await services.create_deal(s, request["uid"], oid)
+    if a is None:
+        return err(code, msg, TAKE_ERROR_STATUS.get(code, 400))
+    return ok({"app_id": a.id}, status=201)
+
+
+async def apps_list(request):
+    async with Session() as s:
+        return ok(await services.list_apps(s, request["uid"]))
+
+
+async def _owned_app(s: Session, uid: int, aid: int) -> App | None:
+    a = await s.get(App, aid)
+    return a if a and a.user_id == uid else None
+
+
+async def app_detail(request):
+    try:
+        aid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Сделка не найдена.", 404)
+    async with Session() as s:
+        a = await _owned_app(s, request["uid"], aid)
+        if a is None:
+            return err("not_found", "Сделка не найдена.", 404)
+        return ok(await services.app_detail(s, a))
+
+
+async def app_proofs_upload(request):
+    try:
+        aid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Сделка не найдена.", 404)
+    uid = request["uid"]
+    try:
+        reader = await request.multipart()
+    except Exception:
+        return err("bad_form", "Ожидается multipart-форма с полем files.")
+    files: list[tuple[str, bytes]] = []
+    async for part in reader:
+        if part.name != "files":
+            continue
+        data = await part.read(decode=False)
+        files.append((part.filename or "file", data))
+        if len(files) > MAX_FILES_PER_UPLOAD:
+            return err("too_many", f"Максимум {MAX_FILES_PER_UPLOAD} файлов за одну отправку.", 400)
+    if not files:
+        return err("no_files", "Выбери хотя бы один файл.")
+
+    import imagehash
+
+    async with Session() as s:
+        a = (await s.execute(select(App).where(App.id == aid).with_for_update())).scalar_one_or_none()
+        if a is None or a.user_id != uid:
+            return err("not_found", "Сделка не найдена.", 404)
+        if a.status not in ("new", "proof", "hold"):
+            return err("closed", "Для этой сделки загрузка подтверждений закрыта.", 409)
+        o = await s.get(Offer, a.offer_id)
+        required, _received, missing = proof_progress(a, o)
+
+        prepared = []
+        for filename, data in files:
+            try:
+                ext = safe_ext(filename)
+            except FileError as e:
+                return err(e.code, str(e), 400)
+            if not data:
+                return err("empty_file", f"Файл «{filename}» пуст.", 400)
+            if len(data) > 10 * 1024 * 1024:
+                return err("too_large", f"Файл «{filename}» больше 10 МБ.", 400)
+            ph = services.image_phash(data) if ext in IMAGE_EXT else None
+            prepared.append((filename, data, ext, ph))
+
+        next_missing = list(missing)
+        batch_hashes: list[str] = []
+        planned = []
+        for filename, data, ext, ph in prepared:
+            suspected, matches = False, 0
+            if ph:
+                exact, suspected, matches = await services.phash_duplicates(s, ph)
+                candidate = imagehash.hex_to_hash(ph)
+                for prev in batch_hashes:
+                    try:
+                        distance = candidate - imagehash.hex_to_hash(prev)
+                        if distance == 0:
+                            exact = True
+                        elif distance <= 3:
+                            suspected = True
+                            matches += 1
+                    except Exception:
+                        pass
+                if exact:
+                    return err("duplicate_proof",
+                               "Это точная копия скриншота, который уже приложен к другой сделке или ранее к этой. "
+                               "Нужен оригинальный файл подтверждения именно для текущего пункта.", 409)
+                batch_hashes.append(ph)
+            current_index = next_missing.pop(0) if next_missing else None
+            label = required[current_index] if current_index is not None else "Дополнительное подтверждение"
+            planned.append((filename, data, ext, ph, current_index, label, suspected, matches))
+
+        items = []
+        for filename, data, ext, ph, current_index, label, suspected, matches in planned:
+            try:
+                storage, _ctype = store_proof(aid, filename, data)
+            except FileError as e:
+                return err(e.code, str(e), 400)
+            items.append({
+                "file_id": None, "storage": storage, "source": "tma",
+                "kind": "photo" if ext in IMAGE_EXT else "document",
+                "name": filename, "hash": ph, "proof_index": current_index, "label": label,
+                "duplicate_suspected": suspected, "duplicate_matches": matches,
+                "uploaded_at": datetime.utcnow().isoformat(),
+            })
+
+        old_status = a.status
+        a.proof_files = list(a.proof_files or []) + items
+        if items[-1]["hash"]:
+            a.proof_hash = items[-1]["hash"]
+        if a.status == "new":
+            a.status = "proof"
+        ver = dict(a.verification or {})
+        ver.pop("proof_submitted_at", None)
+        ver["proof_last_received_at"] = items[-1]["uploaded_at"]
+        a.verification = ver
+        labels = ", ".join(x["label"] for x in items)
+        s.add(DealEvent(app_id=a.id, actor_id=uid, event="proof_uploaded", from_status=old_status, to_status=a.status,
+                        comment=f"Загружено через Mini App: {labels}"))
+        await s.commit()
+        return ok(await services.app_detail(s, a))
+
+
+async def app_proof_file(request):
+    try:
+        aid = int(request.match_info["id"])
+        idx = int(request.match_info["idx"])
+    except ValueError:
+        return err("not_found", "Файл не найден.", 404)
+    async with Session() as s:
+        a = await _owned_app(s, request["uid"], aid)
+        if a is None:
+            return err("not_found", "Сделка не найдена.", 404)
+        items = [x for x in (a.proof_files or []) if isinstance(x, dict)]
+        if not 0 <= idx < len(items):
+            return err("not_found", "Файл не найден.", 404)
+        item = items[idx]
+    headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
+    storage = item.get("storage")
+    if storage:
+        try:
+            path = resolve_proof(storage)
+        except FileError:
+            return err("not_found", "Файл не найден.", 404)
+        return web.FileResponse(path, headers={**headers, "Content-Disposition": "inline"})
+    fid = item.get("file_id")
+    if fid:
+        bot = request.app[BOT_KEY]
+        try:
+            f = await bot.get_file(fid)
+            buf = BytesIO()
+            await bot.download_file(f.file_path, destination=buf)
+        except Exception:
+            return err("telegram_unavailable", "Файл из Telegram временно недоступен. Открой сделку в боте.", 502)
+        ctype = "application/pdf" if str(item.get("name", "")).lower().endswith(".pdf") else "image/jpeg"
+        return web.Response(body=buf.getvalue(), content_type=ctype, headers=headers)
+    return err("not_found", "Файл не найден.", 404)
+
+
+async def app_submit(request):
+    try:
+        aid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Сделка не найдена.", 404)
+    uid = request["uid"]
+    async with Session() as s:
+        a = (await s.execute(select(App).where(App.id == aid).with_for_update())).scalar_one_or_none()
+        if a is None or a.user_id != uid:
+            return err("not_found", "Сделка не найдена.", 404)
+        if a.status not in ("proof", "hold"):
+            return err("closed", "Сделка не найдена или пока не содержит подтверждений.", 409)
+        o = await s.get(Offer, a.offer_id)
+        complete, missing_labels = proofs_complete(a, o, require_submission=False)
+        if not complete:
+            return err("incomplete", "Не хватает подтверждений: " + "; ".join(missing_labels[:2]), 400)
+        ver = dict(a.verification or {})
+        submitted_at = ver.get("proof_submitted_at")
+        last_received = ver.get("proof_last_received_at")
+        if submitted_at and (not last_received or last_received <= submitted_at):
+            return err("already_submitted", "Этот комплект уже отправлен на проверку. Дождись решения администратора.", 409)
+        old = a.status
+        ver["proof_submitted_at"] = datetime.utcnow().isoformat()
+        ver.pop("more_info_requested_at", None)
+        ver.pop("more_info_text", None)
+        a.verification = ver
+        s.add(DealEvent(app_id=a.id, actor_id=uid, event="proof_submitted", from_status=old, to_status=a.status,
+                        comment="Пользователь отправил полный комплект на проверку через Mini App"))
+        o_name = (a.offer_snapshot or {}).get("name", o.name if o else "")
+        file_count = len(a.proof_files or [])
+        await s.commit()
+        bot = request.app[BOT_KEY]
+        for ad in cfg.admins:
+            await notify(bot, ad, f"📥 <b>Комплект доказательств отправлен (Mini App)</b>\nСделка #{aid} · {o_name}\n"
+                                  f"Пользователь: ID {uid}\nФайлов: {file_count}\nОткрой /admin → сделка #{aid}.")
+        return ok(await services.app_detail(s, a))
+
+
+async def wallet(request):
+    async with Session() as s:
+        return ok({
+            "summary": await services.wallet_summary(s, request["uid"]),
+            "entries": await services.wallet_entries(s, request["uid"]),
+        })
+
+
+async def wallet_entries(request):
+    async with Session() as s:
+        return ok(await services.wallet_entries(s, request["uid"]))
+
+
+async def withdrawals_list(request):
+    uid = request["uid"]
+    async with Session() as s:
+        u = await s.get(User, uid)
+        rows = (await s.execute(select(PayoutReq).where(PayoutReq.user_id == uid).order_by(PayoutReq.id.desc()))).scalars().all()
+        requests = []
+        for p in rows:
+            events = (await s.execute(select(PayoutEvent).where(PayoutEvent.payout_id == p.id).order_by(PayoutEvent.id))).scalars().all()
+            requests.append(services.withdrawal_view(p, list(events)))
+        banks = list(services.SBP_BANKS)
+        if u and u.sbp_bank and u.sbp_bank not in banks:
+            banks.insert(0, u.sbp_bank)
+        return ok({"requests": requests, "banks": banks, "min_withdraw": cfg.min_wd, "available": int(u.balance or 0) if u else 0})
+
+
+WITHDRAW_ERROR_STATUS = {"banned": 403, "not_found": 404, "insufficient": 409, "not_pending": 409}
+
+
+async def withdrawals_create(request):
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    if not isinstance(body, dict):
+        return err("bad_json", "Некорректный запрос.")
+    amount = body.get("amount")
+    if isinstance(amount, float) and amount.is_integer():
+        amount = int(amount)
+    bank = body.get("bank")
+    phone = body.get("phone")
+    if bank is not None and not isinstance(bank, str):
+        return err("bad_bank", "Укажи корректный банк СБП.")
+    if phone is not None and not isinstance(phone, str):
+        return err("bad_phone", "Укажи корректный телефон СБП.")
+    uid = request["uid"]
+    async with Session() as s:
+        p, code, msg = await services.create_withdrawal(s, uid, amount, bank, phone)
+        if p is None:
+            return err(code, msg, WITHDRAW_ERROR_STATUS.get(code, 400))
+        events = (await s.execute(select(PayoutEvent).where(PayoutEvent.payout_id == p.id).order_by(PayoutEvent.id))).scalars().all()
+        view = services.withdrawal_view(p, list(events))
+        bot = request.app[BOT_KEY]
+        for ad in cfg.admins:
+            await notify(bot, ad, f"💸 <b>Новый запрос на вывод #{p.id} (Mini App)</b>\nСумма: {p.amount} ₽\nБанк: {p.bank}\n"
+                                  f"Телефон СБП: {phone_decrypt(p.phone)}\nПользователь: {uid}")
+    return ok(view, status=201)
+
+
+async def withdrawals_cancel(request):
+    try:
+        pid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Запрос на вывод не найден.", 404)
+    uid = request["uid"]
+    async with Session() as s:
+        p, code, msg = await services.cancel_withdrawal(s, uid, pid)
+        if p is None:
+            return err(code, msg, WITHDRAW_ERROR_STATUS.get(code, 400))
+        events = (await s.execute(select(PayoutEvent).where(PayoutEvent.payout_id == p.id).order_by(PayoutEvent.id))).scalars().all()
+        view = services.withdrawal_view(p, list(events))
+        bot = request.app[BOT_KEY]
+        for ad in cfg.admins:
+            await notify(bot, ad, f"Запрос на вывод #{p.id} отменён пользователем (Mini App); {p.amount} ₽ возвращены на баланс.")
+    return ok(view)
+
+
 async def spa_index(request):
     dist = ROOT / "webapp" / "dist"
     index = dist / "index.html"
@@ -228,6 +556,19 @@ def setup_tma(app: web.Application, bot):
     r.add_get("/api/v1/meta", meta)
     r.add_get("/api/v1/notifications", notifications)
     r.add_post("/api/v1/notifications/read", notifications_read)
+    r.add_get("/api/v1/offers", offers_list)
+    r.add_get("/api/v1/offers/{id}", offer_detail)
+    r.add_post("/api/v1/offers/{id}/take", offer_take)
+    r.add_get("/api/v1/apps", apps_list)
+    r.add_get("/api/v1/apps/{id}", app_detail)
+    r.add_post("/api/v1/apps/{id}/proofs", app_proofs_upload)
+    r.add_get("/api/v1/apps/{id}/proofs/{idx}/file", app_proof_file)
+    r.add_post("/api/v1/apps/{id}/submit", app_submit)
+    r.add_get("/api/v1/wallet", wallet)
+    r.add_get("/api/v1/wallet/entries", wallet_entries)
+    r.add_get("/api/v1/withdrawals", withdrawals_list)
+    r.add_post("/api/v1/withdrawals", withdrawals_create)
+    r.add_post("/api/v1/withdrawals/{id}/cancel", withdrawals_cancel)
 
     assets = ROOT / "assets"
     if assets.exists():

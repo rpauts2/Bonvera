@@ -9,7 +9,7 @@ from aiogram.types import Message, CallbackQuery, FSInputFile
 from sqlalchemy import select, func
 from bot.config import cfg
 from bot.db import *
-from bot.ui import ik, CAT_RU
+from bot.ui import ik
 from bot.logic import notify, mfo_ready, phone_decrypt
 from bot.proofs import proofs_complete, proof_requirements, awaiting_admin_review
 from bot.offer_rules import bk_approval_must_be_reset
@@ -17,6 +17,16 @@ from bot.offer_rules import bk_approval_must_be_reset
 r = Router()
 class A(StatesGroup):
     rej = State(); needinfo = State(); bc = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State()
+
+
+def _proof_input(item):
+    """Telegram-sendable input for a proof item: TMA storage file or bot file_id."""
+    if isinstance(item, dict) and item.get("storage"):
+        from bot.tma_files import resolve_proof
+        return FSInputFile(resolve_proof(item["storage"]))
+    if isinstance(item, dict):
+        return item.get("file_id")
+    return item
 
 EVENT_RU = {
     "created": "Сделка создана", "proof_uploaded": "Добавлено подтверждение", "proof_submitted": "Комплект передан на проверку",
@@ -73,10 +83,11 @@ async def q(c: CallbackQuery, bot: Bot):
                           [("✅ Начислить сейчас", f"adm:confirm:{a.id}"), ("⏳ В холд", f"adm:hold:{a.id}")],
                           [("❌ Отказ с причиной", f"adm:no:{a.id}")])
             try:
+                inp = _proof_input(latest) or a.proof
                 if latest.get("kind") == "document":
-                    await bot.send_document(c.from_user.id, latest.get("file_id", a.proof), caption=f"#{a.id} · {o.name} · user {a.user_id}", reply_markup=keyboard)
+                    await bot.send_document(c.from_user.id, inp, caption=f"#{a.id} · {o.name} · user {a.user_id}", reply_markup=keyboard)
                 else:
-                    await bot.send_photo(c.from_user.id, latest.get("file_id", a.proof), caption=f"#{a.id} · {o.name} · user {a.user_id}", reply_markup=keyboard)
+                    await bot.send_photo(c.from_user.id, inp, caption=f"#{a.id} · {o.name} · user {a.user_id}", reply_markup=keyboard)
             except Exception: await c.message.answer(f"#{a.id} · {o.name} · user {a.user_id} · файл не открылся", reply_markup=keyboard)
     await c.answer()
 
@@ -346,13 +357,16 @@ async def view_proofs(c: CallbackQuery, bot: Bot):
     await c.answer(f"Отправляю файлов: {len(items)}")
     for i, item in enumerate(items, 1):
         if isinstance(item, str): item = {"file_id": item, "kind": "photo"}
-        fid = item.get("file_id")
-        if not fid: continue
+        try:
+            inp = _proof_input(item)
+        except Exception:
+            inp = None
+        if not inp: continue
         caption = f"Сделка #{aid} · {item.get('label', f'доказательство {i}/{len(items)}')}"
         if item.get("duplicate_suspected"):
             caption += "\n⚠️ Похожий файл найден в других доказательствах; проверь вручную."
-        if item.get("kind") == "document": await bot.send_document(c.from_user.id, fid, caption=caption)
-        else: await bot.send_photo(c.from_user.id, fid, caption=caption)
+        if item.get("kind") == "document": await bot.send_document(c.from_user.id, inp, caption=caption)
+        else: await bot.send_photo(c.from_user.id, inp, caption=caption)
 
 @r.callback_query(F.data == "adm:phistory")
 async def payout_history(c: CallbackQuery):

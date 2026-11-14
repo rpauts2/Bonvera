@@ -250,11 +250,12 @@ def test_material_bk_changes_require_fresh_written_approval():
     assert not bk_approval_must_be_reset("cards", before, after)
 
 
-def test_alembic_chain_has_one_latest_offer_audit_head():
+def test_alembic_chain_has_one_latest_head():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
     cfg = Config(str(ROOT / "alembic.ini"))
     scripts = ScriptDirectory.from_config(cfg)
-    assert scripts.get_heads() == ["0004_offer_audit"]
+    assert scripts.get_heads() == ["0005_tma_sessions"]
     revisions = {rev.revision: rev.down_revision for rev in scripts.walk_revisions()}
+    assert revisions["0005_tma_sessions"] == "0004_offer_audit"
     assert revisions["0004_offer_audit"] == "0003_age_withdrawal_audit"

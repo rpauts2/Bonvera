@@ -19,6 +19,11 @@ class Cfg:
     booking_h: int = int(os.getenv("BOOKING_HOURS", 48))
     min_wd: int = int(os.getenv("MIN_WITHDRAW", 300))
     max_active: int = int(os.getenv("MAX_ACTIVE", 3))
+    webapp_url: str = os.getenv("WEBAPP_URL", "")
+    channel_id: str = os.getenv("BONVERA_CHANNEL_ID", "")
+    channel_url: str = os.getenv("BONVERA_CHANNEL_URL", "")
+    support_url: str = os.getenv("BONVERA_SUPPORT_URL", "")
+    tma_session_hours: int = int(os.getenv("TMA_SESSION_HOURS", "24"))
 
 cfg = Cfg()
 

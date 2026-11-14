@@ -94,9 +94,13 @@ def make_web(bot):
                 await s.commit()
                 await notify(bot, a.user_id, f"⏳ Сделка #{a.id} принята партнёром в обработку и находится в холде до {a.hold_until:%d.%m.%Y}.")
         return web.json_response({"ok": True})
-    app = web.Application()
+    app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/postback", pb)
-    app.router.add_get("/health", lambda r: web.json_response({"ok": True}))
+    async def health(req):
+        return web.json_response({"ok": True})
+    app.router.add_get("/health", health)
+    from bot.tma_api import setup_tma
+    setup_tma(app, bot)
     return app
 
 def make_scheduler(bot):

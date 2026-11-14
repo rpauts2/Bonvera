@@ -57,6 +57,7 @@
 - [x] Аудит кода и карта функций
 - [x] Baseline-тесты: 21/21 passed
 - [x] B: дизайн-система BONVERA и каркас frontend (`webapp/`)
+- [x] C: backend API — initData HMAC, сессии, профиль, dashboard, rate limiting (53/53 тестов)
 
 ## Этап B — frontend-каркас (выполнен)
 
@@ -68,9 +69,19 @@
 - Сборка: `npm run build` (tsc --noEmit && vite build) — **успешно**, 69 модулей, code-splitting по страницам (2026-11-14).
 - Backend пока не реализован: страницы работают против контракта; данные появятся после этапа C.
 
-## Незавершённые задачи (этапы C–H)
+## Этап C — backend API + Telegram-авторизация (выполнен)
 
-- [ ] C: backend API — Telegram-авторизация (initData HMAC + auth_date), сессии, профиль, dashboard, rate limiting
+- `bot/tma_auth.py`: официальная HMAC-SHA256-проверка initData (secret = HMAC("WebAppData", bot_token), data_check_string из отсортированных полей без `hash`), `auth_date` (свежесть ≤ 1 ч, будущее отклонено, допуск +60 с), запрет дублирующихся ключей, обязательный целый Telegram ID. Найден и исправлен timezone-баг: `datetime.utcnow().timestamp()` на не-UTC машинах сдвигал «сейчас» — заменено на `datetime.now(timezone.utc)`.
+- Сессии: opaque bearer-токен (`secrets.token_urlsafe(32)`), в БД только SHA-256-хэш (`tma_sessions`), TTL `TMA_SESSION_HOURS` (24 ч), очистка истёкших при создании. Клиентский `initDataUnsafe`/Telegram ID без подписи не принимаются нигде.
+- Additive-миграция `0005_tma_sessions` (down_revision `0004_offer_audit`): таблица `tma_sessions` + `users.notif_read_at`; применена в тестах на чистой sqlite через `init_db()`; тест головы Alembic обновлён.
+- `bot/services.py`: общий сервисный слой (профиль, кошелёк по той же математике что и бот, каталог, заявки, задания, достижения, уведомления, друзья, meta) — TMA и бот не расходятся в деньгах/владении.
+- `bot/tma_api.py`: `/api/v1` на существующем aiohttp (`make_web`), единый JSON-конверт `{ok,data|err}`; middleware: Bearer → сессия → banned 403 → 401; sliding-window rate limit (auth 20/мин на IP, API 240/мин на пользователя). Эндпоинты: auth/telegram, me, me/accept, me/age (18–120), me/sbp (Fernet + phash, маска в ответе), dashboard, meta, notifications, notifications/read; SPA `/app` + статика ассетов.
+- `bot/web.py`: `setup_tma(app, bot)`, `client_max_size=25MB` под загрузку доказательств; postback/планировщик не тронуты; /health переведён на async-handler.
+- Тесты: `tests/conftest.py` (изолированная sqlite + тестовые секреты до импорта bot), `tests/test_tma_auth.py` (14: валидная подпись, tamper, чужой токен, expired/future auth_date, дубликаты, отсутствие hash/user, нецелый ID, порядок полей), `tests/test_tma_api.py` (18: auth→me, 401/403, banned, изоляция пользователей, возраст/СБП-валидация и шифрование, dashboard/meta/notifications, rate limit 429, истёкшая сессия, session helpers, /health, /app).
+- Результат: **53 passed** (`pytest tests/`, 2026-11-14): 21 baseline + 32 новых. Frontend-сборка этапа B не менялась.
+
+## Незавершённые задачи (этапы D–H)
+
 - [ ] D: каталог 93 офферов — поиск/фильтры/сортировки, детали, изображения
 - [ ] E: заявки, доказательства (приватное хранилище), холды, кошелёк, вывод, история
 - [ ] F: 4 бонуса (+20/+100/+10/+500), рефералы, прогресс, 2 рейтинга, антинакрутка
@@ -85,4 +96,4 @@
 
 ## Следующий конкретный шаг
 
-Этап C: модуль проверки initData (HMAC-SHA256 по официальному алгоритму, auth_date, запрет дубликатов ключей), additive-миграция 0005 (сессии; обновить тест головы Alembic), сессии с истечением, `/api/v1` в `bot/web.py:make_web` (auth/me/dashboard/meta), rate limiting и единый JSON-конверт.
+Этапы D+E: эндпоинты каталога (GET /offers, GET /offers/:id, POST /offers/:id/take с серверной перепроверкой всех условий), заявок (GET /apps, GET /apps/:id), доказательств (POST /apps/:id/proofs — приватное хранилище, phash-дедупликация, совместимость с file_id; POST /apps/:id/submit), кошелька и вывода (GET /wallet, GET /wallet/entries, GET/POST /withdrawals, отмена), просмотр TMA-загрузок в /admin, заполнение `app_view.image_url`, возрастной ввод на OfferPage.

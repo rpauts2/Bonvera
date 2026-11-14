@@ -32,6 +32,7 @@ class User(Base):
     balance: Mapped[int] = mapped_column(Integer, default=0)
     banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    notif_read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 class Bank(Base):
     __tablename__ = "banks"
@@ -243,3 +244,12 @@ class OfferEvent(Base):
     event: Mapped[str] = mapped_column(String(40))
     details: Mapped[str] = mapped_column(Text, default="")
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class TmaSession(Base):
+    __tablename__ = "tma_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    expires: Mapped[datetime] = mapped_column(DateTime)

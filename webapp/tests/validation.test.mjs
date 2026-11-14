@@ -4,10 +4,12 @@ import { closeVite, loadModule } from "./harness.mjs";
 
 let validateWithdrawal;
 let rub;
+let ageRangeLabel;
+let uniqueOfferDetails;
 
 before(async () => {
   ({ validateWithdrawal } = await loadModule("/src/lib/validation.ts"));
-  ({ rub } = await loadModule("/src/lib/format.ts"));
+  ({ rub, ageRangeLabel, uniqueOfferDetails } = await loadModule("/src/lib/format.ts"));
 });
 
 after(async () => {
@@ -99,4 +101,19 @@ test("sends the typed phone when the saved one is not used", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.phone, "+7 900 123-45-67");
+});
+
+
+test("age display treats 120 as an unlimited upper bound", () => {
+  assert.equal(ageRangeLabel(18, 120), "18+");
+  assert.equal(ageRangeLabel(21, 120), "21+");
+  assert.equal(ageRangeLabel(21, 75), "21–75 лет");
+});
+
+test("offer details do not repeat the condition or duplicate action/rules", () => {
+  assert.deepEqual(
+    uniqueOfferDetails("Выпуск карты", "Выпуск карты", "Выпуск карты", "Подробные правила"),
+    ["Подробные правила"],
+  );
+  assert.deepEqual(uniqueOfferDetails("Условие", null, "Дополнение", "Дополнение"), ["Дополнение"]);
 });

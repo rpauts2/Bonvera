@@ -3,7 +3,7 @@ from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, WebAppInfo
 from pathlib import Path
 from io import BytesIO
 import imagehash
@@ -27,6 +27,15 @@ async def uget(s, m):
         s.add(u); await s.commit()
     return u
 
+async def send_webapp_button(m: Message):
+    # Inline web_app button: Telegram signs initData for this launch path.
+    # A reply-keyboard web_app button would open the app with EMPTY initData.
+    if not cfg.webapp_url:
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="📱 Открыть BONVERA", web_app=WebAppInfo(url=cfg.webapp_url))]])
+    await m.answer("📱 <b>Приложение BONVERA</b> — каталог, заявки, кошелёк и бонусы:", reply_markup=kb)
+
 @r.message(CommandStart())
 async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
@@ -41,12 +50,14 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
         if not u.accepted:
             return await m.answer(WELCOME, reply_markup=ik([("✅ Принимаю, мне 18+", "accept")]))
     await m.answer("Главное меню 👇", reply_markup=MENU)
+    await send_webapp_button(m)
 
 @r.callback_query(F.data == "accept")
 async def accept(c: CallbackQuery):
     async with Session() as s:
         u = await s.get(User, c.from_user.id); u.accepted = u.adult = True; await s.commit()
     await c.message.edit_text("Готово ✅"); await c.message.answer("Выбирай раздел 👇", reply_markup=MENU); await c.answer()
+    await send_webapp_button(c.message)
 
 GATES = {"bk": ("⚽ Ставки", cfg.bk, BK_GATE), "mfo": ("🏦 Займы", cfg.mfo, MFO_GATE), "cpl": ("📝 Заявки", cfg.cpl, CPL_GATE)}
 

@@ -16,6 +16,13 @@ async def main():
     await init_db()
     n = await seed(); logging.info(f"каталог: {n} офферов")
     bot = Bot(cfg.token, default=DefaultBotProperties(parse_mode="HTML"))
+    if cfg.webapp_url:
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        try:
+            await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="BONVERA", web_app=WebAppInfo(url=cfg.webapp_url)))
+            logging.info("menu button Mini App установлен")
+        except Exception as e:
+            logging.warning(f"не удалось установить menu button: {e}")
     storage = RedisStorage.from_url(cfg.redis_url) if cfg.redis_url else None
     dp = Dispatcher(storage=storage)
     dp.include_router(admin_r); dp.include_router(user_r)

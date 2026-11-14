@@ -10,3 +10,6 @@ __pycache__
 venv
 .DS_Store
 data
+webapp/node_modules
+webapp/dist
+webapp/.vite

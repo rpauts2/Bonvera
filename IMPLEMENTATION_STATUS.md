@@ -60,6 +60,7 @@
 - [x] C: backend API — initData HMAC, сессии, профиль, dashboard, rate limiting (53/53 тестов)
 - [x] D+E: каталог, заявки, доказательства (приватное хранилище), кошелёк, вывод, /admin-просмотр TMA-файлов (69/69 тестов)
 - [x] F: 4 бонуса (+20/+100/+10/+500), рефералы, 2 рейтинга, антинакрутка (81/81 тестов)
+- [x] G: запуск Mini App из бота, .env.example, Docker multi-stage, документация (83/83 тестов)
 
 ## Этап B — frontend-каркас (выполнен)
 
@@ -103,9 +104,17 @@
 - GET /tasks (4 постоянных задания, без ежедневных), GET /friends (ref-ссылка `/start ref_<id>`, invited/qualified, раздельные суммы комиссии и бонусов), GET /achievements (6 достижений), GET /leaderboard?type=orders|friends&period=month|all — только реальные результаты (подтверждённые заказы по reviewed_at; друзья с фактической paid-выплатой по paid_at), забаненные исключены, топ-20 + место пользователя, display только `@username` или «Участник N» — никаких Telegram ID/телефонов/имён.
 - Тесты: `tests/test_tma_bonuses.py` — 12 интеграционных (+10 через полный API-цикл и повтор без начисления, +500 на 10-м и без двойного на 11-м, +100 только первая выплата/повтор/вторая выплата, guards без реферера/self/banned, сквозной хук через реальный `admin.paid()` с fake-callback, +20 один раз/не настроен/не подписан/ошибка Telegram, анонимизация и периоды обоих рейтингов, контракты tasks/friends/achievements, раздельность REF_PERCENT и +100). Обновлен кошелёк-тест D+E под реальный бонус +10 (510 ₽). Итог: **81 passed** (21 baseline + 60 новых). Frontend-сборка успешна.
 
-## Незавершённые задачи (этапы G–H)
+## Этап G — Telegram-интеграция и сборка (выполнен)
 
-- [ ] G: запуск Mini App из бота (кнопка /start, menu button), .env.example, Docker multi-stage
+- Запуск TMA: inline `web_app`-кнопка «📱 Открыть BONVERA» в /start и после принятия правил (`bot/user.py:send_webapp_button`) — выбран inline-путь, потому что Telegram подписывает initData для него; reply-keyboard web_app-кнопка намеренно НЕ используется (пустой initData ломает серверную авторизацию). При заданном `WEBAPP_URL` бот при старте ставит menu button (`set_chat_menu_button`, ошибка не роняет запуск).
+- `.env.example`: WEBAPP_URL, BONVERA_CHANNEL_ID, BONVERA_CHANNEL_URL, BONVERA_SUPPORT_URL, TMA_SESSION_HOURS с пояснениями.
+- Dockerfile multi-stage: node:24-alpine собирает `webapp/dist` (npm ci + npm run build), python:3.11-slim запускает бота; dist копируется в образ и раздаётся на `/app`. `.dockerignore` дополнен webapp/node_modules, webapp/dist. Docker в среде разработки недоступен — образ проверен структурно; `npm ci --dry-run` подтвердил синхронность lockfile; локальная сборка frontend (та же команда, что в образе) успешна.
+- `scripts/dev_initdata.py`: генератор подписанного initData для локальной разработки (official HMAC); проверен сквозным roundtrip через `verify_init_data`. DEV-поле входа во фронтенде уже ссылается на этот скрипт (Gates.tsx, только import.meta.env.DEV вне Telegram).
+- `MINIAPP.md`: BotFather (menu button, Main Mini App), HTTPS/nginx, локальная разработка, production-сборка, настройка канала, безопасность, чек-лист перед публикацией.
+- Тесты: `tests/test_bot_launch.py` — 2 (кнопка inline с web_app.url; скрыта без WEBAPP_URL). Итог: **83 passed**.
+
+## Незавершённые задачи (этап H)
+
 - [ ] H: тесты (список §21), документация, инструкции BotFather/HTTPS
 
 ## Известные ограничения
@@ -116,4 +125,4 @@
 
 ## Следующий конкретный шаг
 
-Этап G: кнопка Mini App в /start и menu button при заданном WEBAPP_URL (bot/user.py, bot/__main__.py); дополнения .env.example (WEBAPP_URL, BONVERA_CHANNEL_ID/URL, BONVERA_SUPPORT_URL, TMA_SESSION_HOURS); Dockerfile multi-stage со сборкой frontend внутри образа; инструкции BotFather/HTTPS/local dev; scripts/dev_initdata.py для локальной разработки.
+Этап H: сверка полного списка тестов §21 (все пункты покрыты или явно отмечены), финальный прогон pytest + frontend build, проверка навигации/форм/пустых данных, итоговый отчёт по §24, попытка push в feat/bonvera-mini-app-v2 (при отсутствии credentials — честно зафиксировать).

@@ -7,7 +7,7 @@ from bot.config import cfg
 
 config = context.config
 config.set_main_option("sqlalchemy.url", cfg.db)
-if config.config_file_name:
+if config.config_file_name and config.get_section("formatters") is not None:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
 

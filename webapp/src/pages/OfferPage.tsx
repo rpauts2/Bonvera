@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
+import { ageRangeLabel, uniqueOfferDetails } from "../lib/format";
 import { useLoad } from "../lib/useLoad";
 import type { OfferDetail, TakeResult, UserProfile } from "../lib/types";
 import { useSession } from "../state/session";
@@ -67,6 +68,8 @@ export default function OfferPage() {
 
   const ageBlocked =
     offer && user?.age_years != null && (user.age_years < offer.age_min || user.age_years > offer.age_max);
+  const conditionText = offer?.condition?.trim() || offer?.action?.trim() || "";
+  const extraOfferDetails = uniqueOfferDetails(conditionText, offer?.action, offer?.rules);
 
   return (
     <div>
@@ -106,7 +109,7 @@ export default function OfferPage() {
                     </div>
                     {offer.purchase_min > 0 && <div className="mt-1">покупка от {offer.purchase_min} ₽</div>}
                     <div className="mt-1">
-                      возраст {offer.age_min}–{offer.age_max}
+                      возраст {ageRangeLabel(offer.age_min, offer.age_max)}
                     </div>
                   </div>
                 </div>
@@ -169,9 +172,10 @@ export default function OfferPage() {
           <SectionTitle>Условие</SectionTitle>
           <section className="px-5">
             <div className="card-glass space-y-3 p-5 text-sm leading-relaxed text-indigo-200/80">
-              <p className="font-bold text-indigo-100">{offer.condition}</p>
-              {offer.action && <p className="whitespace-pre-line text-xs text-indigo-200/65">{offer.action}</p>}
-              {offer.rules && <p className="whitespace-pre-line text-xs text-indigo-200/65">{offer.rules}</p>}
+              {conditionText && <p className="font-bold text-indigo-100">{conditionText}</p>}
+              {extraOfferDetails.map((detail) => (
+                <p key={detail} className="whitespace-pre-line text-xs text-indigo-200/65">{detail}</p>
+              ))}
             </div>
           </section>
 
@@ -256,7 +260,7 @@ export default function OfferPage() {
                   Подтверди возраст для этого предложения
                 </div>
                 <p className="text-[12px] leading-relaxed text-indigo-300/75">
-                  Доступный возраст: {offer.age_min}–{offer.age_max} лет. Возраст проверяется на сервере
+                  Доступный возраст: {ageRangeLabel(offer.age_min, offer.age_max)}. Возраст проверяется на сервере
                   и сохраняется в профиле — вводить его повторно не потребуется.
                 </p>
                 <input
@@ -298,7 +302,7 @@ export default function OfferPage() {
                 </button>
                 <p className="text-center text-[12px] leading-relaxed text-indigo-300/75">
                   {ageBlocked
-                    ? `Предложение доступно для возраста ${offer.age_min}–${offer.age_max} лет.`
+                    ? `Предложение доступно для возраста ${ageRangeLabel(offer.age_min, offer.age_max)}.`
                     : offer.unavailable_reason ??
                       "Партнёрская ссылка ещё не добавлена или предложение временно недоступно."}
                 </p>

@@ -34,7 +34,7 @@ async def seed(path="catalog.yaml"):
             o = (await s.execute(select(Offer).where(Offer.code == row["code"]))).scalar_one_or_none()
             is_new = o is None
             if is_new:
-                o = Offer(code=row["code"], bank_id=bank.id)
+                o = Offer(code=row["code"], bank_id=bank.id, name=row["title"])
                 s.add(o); await s.flush()
             else:
                 # Keep admin-entered tracking link and enabled flag on reseed.

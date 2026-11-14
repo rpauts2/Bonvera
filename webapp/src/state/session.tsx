@@ -13,7 +13,13 @@ interface SessionState {
   logout: () => void;
 }
 
-const SessionContext = createContext<SessionState | null>(null);
+/**
+ * Session context.
+ *
+ * Exported so that components can be rendered with a prepared session
+ * (tests and previews) without going through the Telegram handshake.
+ */
+export const SessionContext = createContext<SessionState | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);

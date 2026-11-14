@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, fmtDateTime, rub } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
+import { validateWithdrawal } from "../lib/validation";
 import type { Withdrawal, WithdrawalsData } from "../lib/types";
 import { useSession } from "../state/session";
 import { Icon } from "../components/Icon";
@@ -25,39 +26,30 @@ export default function Withdraw() {
   async function createRequest() {
     if (!data) return;
     setFormError(null);
-    const value = Number(amount.replace(",", "."));
-    if (!Number.isFinite(value) || value <= 0) {
-      setFormError("Введи корректную сумму.");
-      return;
-    }
-    if (value < minWd) {
-      setFormError(`Минимальная сумма вывода — ${rub(minWd)}.`);
-      return;
-    }
-    if (value > available) {
-      setFormError(`Доступно только ${rub(available)}.`);
-      return;
-    }
-    const chosenBank = bank || user?.sbp_bank || "";
-    if (!chosenBank) {
-      setFormError("Выбери банк для перевода по СБП.");
-      return;
-    }
-    if (!useSaved && !phone.trim()) {
-      setFormError("Укажи телефон, привязанный к СБП, или используй сохранённый.");
+    const check = validateWithdrawal({
+      amount,
+      min: minWd,
+      available,
+      bank: bank || user?.sbp_bank || "",
+      phone,
+      useSaved,
+      hasSavedPhone,
+    });
+    if (!check.ok) {
+      setFormError(check.message);
       return;
     }
     setBusy(true);
     haptic("medium");
     try {
       const created = await api.post<Withdrawal>("/withdrawals", {
-        amount: value,
-        bank: chosenBank,
-        phone: useSaved && hasSavedPhone ? null : phone.trim(),
+        amount: check.amount,
+        bank: check.bank,
+        phone: check.phone,
       });
       setData((prev) =>
         prev
-          ? { ...prev, available: prev.available - value, requests: [created, ...prev.requests] }
+          ? { ...prev, available: prev.available - check.amount, requests: [created, ...prev.requests] }
           : prev,
       );
       setAmount("");

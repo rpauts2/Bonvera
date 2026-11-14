@@ -26,3 +26,15 @@ export function fmtDateTime(iso: string | null): string {
     minute: "2-digit",
   });
 }
+
+/** Human-readable age range; 120 is the catalogue's "no upper limit" sentinel. */
+export function ageRangeLabel(min: number, max: number): string {
+  return max >= 120 ? `${min}+` : `${min}–${max} лет`;
+}
+
+/** Extra offer details without repeating the main condition/action text. */
+export function uniqueOfferDetails(condition: string | null | undefined, ...details: Array<string | null | undefined>): string[] {
+  const primary = (condition ?? "").trim();
+  return [...new Set(details.map((value) => (value ?? "").trim()).filter(Boolean))]
+    .filter((value) => value !== primary);
+}

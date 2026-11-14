@@ -152,6 +152,27 @@ def test_referral_bonus_first_paid_only(loop, client, offers):
     assert sum(1 for e in data["entries"] if e["kind"] == "task_ref_bonus") == 1
 
 
+def test_referral_task_remains_repeatable_for_each_qualified_friend(loop, client, offers):
+    ref_token, _ = login(loop, client, 930040)
+    for friend_id in (930041, 930042):
+        login(loop, client, friend_id)
+        bind_referrer(loop, friend_id, 930040)
+        assert mark_paid(loop, make_payout(loop, friend_id)) == (930040, 100)
+
+    status, body = get_json(loop, client, "/api/v1/tasks", ref_token)
+    assert status == 200
+    task = next(t for t in body["data"] if t["key"] == "referral")
+    assert task["done"] is False, "реферальная награда остаётся повторяемой после первого друга"
+    assert task["progress"] == 2 and task["target"] == 0
+    assert "2 × 100 ₽" in task["hint"]
+    assert "каждого следующего друга" in task["hint"]
+
+    status, body = get_json(loop, client, "/api/v1/friends", ref_token)
+    assert status == 200
+    assert body["data"]["qualified"] == 2
+    assert body["data"]["bonus_earned"] == 200
+
+
 def test_referral_bonus_guards(loop, client, offers):
     # No referrer.
     login(loop, client, 930005)

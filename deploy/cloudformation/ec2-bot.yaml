@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Minimal single-instance VPS for the cashback bot. Graviton burstable instance in
+  standard CPU-credit mode, encrypted gp3 volume, no inbound ports (access via SSM),
+  Docker + docker compose prepared by user data.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t4g.micro
+    AllowedValues: [t4g.nano, t4g.micro, t4g.small, t4g.medium]
+    Description: Arm64 burstable instance type. t4g.micro = 2 vCPU burst / 1 GiB RAM.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC that owns SubnetId (the default VPC works).
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet (default VPC is fine). The instance gets a public IPv4 for outbound access.
+  RepoUrl:
+    Type: String
+    Default: https://github.com/rpauts2/Bonvera.git
+    Description: Git repository cloned to /opt/cashback-bot.
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+    Description: Amazon Linux 2023 arm64 AMI, resolved through the public SSM parameter.
+  VolumeSizeGb:
+    Type: Number
+    Default: 16
+    MinValue: 8
+    MaxValue: 100
+
+Resources:
+  BotInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - Key: Project
+          Value: cashback-bot
+
+  BotInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BotInstanceRole
+
+  BotSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: cashback-bot egress only, no inbound rules
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+          Description: outbound only
+      Tags:
+        - Key: Name
+          Value: cashback-bot
+        - Key: Project
+          Value: cashback-bot
+
+  BotInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref SubnetId
+      IamInstanceProfile: !Ref BotInstanceProfile
+      SecurityGroupIds:
+        - !Ref BotSecurityGroup
+      CreditSpecification:
+        CPUCredits: standard
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 2
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: !Ref VolumeSizeGb
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: cashback-bot
+        - Key: Project
+          Value: cashback-bot
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+
+          # --- swap: 2 GiB, so a docker build fits in 1 GiB of RAM ---
+          if [ ! -f /swapfile ]; then
+            dd if=/dev/zero of=/swapfile bs=1M count=2048
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            echo '/swapfile none swap sw 0 0' >> /etc/fstab
+          fi
+
+          # --- docker + compose plugin ---
+          dnf install -y docker git
+          systemctl enable --now docker
+          usermod -aG docker ec2-user
+          mkdir -p /usr/libexec/docker/cli-plugins
+          curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
+            -o /usr/libexec/docker/cli-plugins/docker-compose
+          chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+          # --- application code ---
+          rm -rf /opt/cashback-bot
+          git clone ${RepoUrl} /opt/cashback-bot
+          cd /opt/cashback-bot
+
+          # --- .env: generated local secrets, bot credentials stay as placeholders ---
+          cp .env.example .env
+          sed -i "s|^HASH_SALT=.*|HASH_SALT=$(openssl rand -hex 32)|" .env
+          sed -i "s|^PHONE_ENCRYPTION_KEY=.*|PHONE_ENCRYPTION_KEY=$(openssl rand -hex 32)|" .env
+          sed -i "s|^POSTBACK_SECRET=.*|POSTBACK_SECRET=$(openssl rand -hex 32)|" .env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|" .env
+          chown -R ec2-user:ec2-user /opt/cashback-bot
+          chmod 600 /opt/cashback-bot/.env
+
+          echo "bootstrap finished" > /var/log/cashback-bot-bootstrap.log
+
+Outputs:
+  InstanceId:
+    Description: EC2 instance id
+    Value: !Ref BotInstance
+  PublicIp:
+    Description: Public IPv4 of the instance
+    Value: !GetAtt BotInstance.PublicIp
+  SsmSessionCommand:
+    Description: Connect without SSH keys or open ports
+    Value: !Sub "aws ssm start-session --target ${BotInstance} --region ${AWS::Region}"
+  StartBotCommand:
+    Description: Run on the instance after .env is filled in
+    Value: "cd /opt/cashback-bot && docker compose up -d --build"

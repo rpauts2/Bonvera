@@ -22,7 +22,7 @@ Every offer image must look like a premium BONVERA campaign tile, not a flat log
 
 ## Current state (2026-11-15)
 
-Seven offers now have active, self-contained BONVERA SVG compositions using official product-page artwork. A visual audit distinguishes actual card renders from broader brand/product artwork:
+Seven offers now have active, self-contained BONVERA SVG compositions using official product-page artwork. The stage was upgraded to a brighter, deeper neon studio treatment on 2026-11-15. A visual audit distinguishes actual card renders from broader brand/product artwork:
 
 - cards/t_bank.svg — T-Bank Black.
 - cards/mts_dengi.svg — official МТС Деньги product artwork; the source is a stylized promotional render, not a clean standalone plastic-card render.

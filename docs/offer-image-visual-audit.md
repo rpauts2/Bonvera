@@ -39,3 +39,11 @@
 ## Рекомендация
 
 Не заменять оставшиеся JPG случайными найденными картинками. Для точного попадания в референс лучше получить от партнёрских сетей или банков media kit/разрешённые изображения конкретных продуктов. Для непроверенных офферов использовать аккуратный брендовый арт без изображения выдуманной карты.
+
+
+## Stage redesign v2 (2026-11-15)
+
+- All seven active official SVG compositions were regenerated with the same authentic embedded source images.
+- The BONVERA environment now uses layered cyan/violet/gold lighting, diagonal light beams, orbital rings, a luminous elliptical platform and more visible particles.
+- Card source bytes are unchanged; the new stage affects only the surrounding composition.
+- The gallery was re-opened in Chromium after regeneration. The card render itself remains clear at 16:9.

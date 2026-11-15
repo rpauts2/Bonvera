@@ -17,7 +17,7 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
       onClick={() => haptic("light")}
       className="card-glass block overflow-hidden transition-transform active:scale-[0.98]"
     >
-      <div className="relative h-32 w-full overflow-hidden bg-navy-800">
+      <div className="relative aspect-video w-full overflow-hidden bg-navy-800">
         <img
           src={offer.image_url}
           alt={`${offer.brand} · ${offer.name}`}

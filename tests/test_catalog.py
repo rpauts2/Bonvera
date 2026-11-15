@@ -26,6 +26,23 @@ def test_each_offer_has_unique_asset():
     assert len({p.stem for p in paths}) == 93
 
 
+def test_all_catalog_offer_images_resolve_to_existing_assets():
+    from types import SimpleNamespace
+    from bot.services import offer_image_url
+
+    for item in DATA:
+        offer = SimpleNamespace(
+            image_path=f"assets/offers/{item['category']}/{item['code']}.jpg",
+            code=item["code"],
+        )
+        bank = SimpleNamespace(category=item["category"], slug=item["code"])
+        resolved = offer_image_url(offer, bank)
+        assert resolved.startswith("/assets/offers/"), item["code"]
+        assert (ROOT / resolved.lstrip("/")).is_file(), item["code"]
+        if (ROOT / "assets" / "offers" / item["category"] / f"{item['code']}.svg").is_file():
+            assert resolved.endswith(".svg"), item["code"]
+
+
 def test_offer_image_url_prefers_reviewed_svg_and_falls_back_to_jpg(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from bot.services import offer_image_url

@@ -80,7 +80,7 @@ export default function OfferPage() {
         <>
           <section className="px-5">
             <div className="card-glass overflow-hidden">
-              <div className="relative h-44 w-full overflow-hidden bg-navy-800">
+              <div className="relative aspect-video w-full overflow-hidden bg-navy-800">
                 <img
                   src={offer.image_url}
                   alt={`${offer.brand} · ${offer.name}`}

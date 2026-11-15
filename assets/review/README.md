@@ -29,3 +29,20 @@ Do not copy review assets into `assets/offers/` until exact product matching, cu
 - Official product image from the Sovcombank Halva page; embedded unchanged in compositions/halva-bonvera-preview.svg.
 - Active catalog composition: assets/offers/cards/sovkombank_halva.svg.
 - Commercial reuse terms have not been separately documented.
+
+## ПСБ — «Твой кешбэк»
+- Official current debit-card catalogue: https://www.psbank.ru/personal/cards
+- Official image: https://www.psbank.ru/qpstorage/psb/images/personal/banner/dc_o.png
+- Source file: official/psb-your-cashback.png.
+- The PSB page labels this visual as the debit card «Твой кешбэк». The user's catalog offer is named only «ПСБ», so this is the bank's current debit-card visual, not a confirmed campaign-specific card variant.
+- Active catalog composition: assets/offers/cards/psb.svg.
+- Commercial reuse terms have not been separately documented.
+
+## Альфа-Банк — «Апельсиновая карта»
+- Official product page: https://alfabank.ru/apelsin/debit-cards/mir/
+- Official product visual page: https://myapelsin.ru/
+- Source image: https://myapelsin.ru/_next/static/media/card.2cnpr2ngd6jqy.webp
+- Source file: official/alfa-apelsin-card.webp.
+- The asset is labelled «Карта Апельсин» on the official product site; embedded unchanged in compositions/alfa-apelsin-bonvera-preview.svg.
+- Active catalog composition: assets/offers/cards/alfa_bank_apelsinovaya.svg.
+- Commercial reuse terms have not been separately documented.

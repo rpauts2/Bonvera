@@ -20,9 +20,15 @@ Every offer image must look like a premium BONVERA campaign tile, not a flat log
 5. Keep source URL, retrieval date, checksum, and permission status in `docs/offer-image-asset-register.csv` before publishing the asset.
 6. Do not hotlink partner images in production. Store optimized local copies only after usage rights are confirmed.
 
-## Current state
+## Current state (2026-11-15)
 
-The 93 JPG files in this directory are legacy generated placeholders. Their paths are referenced by the catalog and bot. They must remain in place until each replacement is verified and regression-tested. The current artwork is not an approved source of truth for real card designs.
+- 14 user-generated bank-card promotional renders have been installed at the existing catalog filenames in `assets/offers/cards/`.
+- The 14 source images were 1920×1080 PNGs; they were converted to optimized 1600×900 progressive JPEGs (about 1.48 MB total) to keep Telegram Mini App and bot payloads lightweight.
+- The images are visually consistent with BONVERA's purple/gold campaign style and match the product labels supplied in their filenames. Their exact fidelity to currently issued physical bank cards has not been independently verified. Treat them as AI-generated promotional artwork, not official bank photography.
+- `psb.jpg` and `t_bank.jpg` were not included in the upload and remain unchanged legacy visuals.
+- All 93 expected paths remain present. Run `python3 scripts/validate_offer_images.py` after every replacement.
+
+The current art is suitable as a branded visual draft, but product-accuracy review is still required before claiming that every image depicts the exact issued card design.
 
 ## Replacement workflow
 

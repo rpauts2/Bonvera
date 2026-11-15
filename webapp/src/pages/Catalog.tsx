@@ -12,6 +12,7 @@ const CATEGORIES = [
   { key: "bk", label: "Букмекеры" },
   { key: "mfo", label: "Займы МФО" },
   { key: "cpl", label: "CPL-заявки" },
+  { key: "rko", label: "РКО" },
 ] as const;
 
 const SORTS = [
@@ -33,6 +34,7 @@ export default function Catalog() {
   }, [q]);
 
   const path = useMemo(() => {
+    if (category === "rko") return null;
     const params = new URLSearchParams();
     if (debouncedQ) params.set("q", debouncedQ);
     if (category !== "all") params.set("category", category);
@@ -45,9 +47,10 @@ export default function Catalog() {
 
   return (
     <div>
-      <PageHeader title="Каталог" subtitle="Карты · Букмекеры · МФО · CPL" back="/" />
+      <PageHeader title="Каталог" subtitle="Карты · Букмекеры · МФО · CPL · РКО" back="/" />
 
       <div className="space-y-3 px-5">
+        {category !== "rko" && (
         <div className="relative">
           <Icon name="search" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-300/70" />
           <input
@@ -58,6 +61,8 @@ export default function Catalog() {
             aria-label="Поиск предложений"
           />
         </div>
+
+        )}
 
         <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
           {CATEGORIES.map((c) => (
@@ -78,6 +83,7 @@ export default function Catalog() {
           ))}
         </div>
 
+        {category !== "rko" && (
         <div className="flex items-center gap-2">
           <select
             className="input-dark flex-1 appearance-none py-2.5 text-sm"
@@ -106,8 +112,38 @@ export default function Catalog() {
             <Icon name="check" className="h-3.5 w-3.5" /> Доступные
           </button>
         </div>
+        )}
       </div>
 
+      {category === "rko" ? (
+        <section className="px-5 pt-2" aria-labelledby="rko-title">
+          <div className="relative overflow-hidden rounded-3xl border border-gold/25 bg-gradient-to-br from-[#17172f] via-[#11172d] to-[#101c2c] p-5 shadow-card">
+            <div className="pointer-events-none absolute -right-10 -top-12 h-44 w-44 rounded-full bg-gold/10 blur-3xl" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/10 text-gold shadow-glow-gold">
+                <Icon name="wallet" className="h-6 w-6" />
+              </div>
+              <span className="rounded-full border border-gold/25 bg-gold/10 px-3 py-1 text-[11px] font-bold text-gold">Скоро</span>
+            </div>
+            <div className="relative mt-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold/80">Для бизнеса</p>
+              <h2 id="rko-title" className="mt-2 text-2xl font-extrabold tracking-tight text-white">Расчётный счёт и РКО</h2>
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-indigo-200/75">Подбор предложений для открытия расчётного счёта, регистрации бизнеса и обслуживания ИП и ООО.</p>
+            </div>
+            <div className="relative mt-5 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-white/5 bg-black/20 p-3">
+                <div className="text-xs font-bold text-indigo-100">ИП и ООО</div>
+                <div className="mt-1 text-[11px] text-indigo-300/65">Предложения для бизнеса</div>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-black/20 p-3">
+                <div className="text-xs font-bold text-indigo-100">Бонусы за оформление</div>
+                <div className="mt-1 text-[11px] text-indigo-300/65">Размеры появятся с офферами</div>
+              </div>
+            </div>
+            <p className="relative mt-4 text-[11px] leading-relaxed text-indigo-300/60">Категория уже добавлена в каталог. Предложения и условия появятся после проверки партнёрских офферов.</p>
+          </div>
+        </section>
+      ) : (
       <div className="pt-4">
         {error && <ErrorState message={error} onRetry={() => void reload()} />}
         {loading && !data && <ListSkeleton rows={4} />}
@@ -132,6 +168,7 @@ export default function Catalog() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

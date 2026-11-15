@@ -18,7 +18,7 @@ Do not copy review assets into `assets/offers/` until exact product matching, cu
 - Official product page: https://mtsdengi.ru/
 - Source image: https://mtsdengi.ru/static/main-page/images/cards/pfk-debet-md.png
 - Source file: official/mts_money_card.png.
-- Exact debit-card product visual shown by the official MTS Money site; embedded unchanged in compositions/mts-money-bonvera-preview.svg.
+- Official product campaign render shown by the MTS Money site; it is not a clean standalone plastic-card render. Embedded unchanged in compositions/mts-money-bonvera-preview.svg.
 - Active catalog composition: assets/offers/cards/mts_dengi.svg.
 - Commercial reuse terms have not been separately documented.
 
@@ -43,7 +43,7 @@ Do not copy review assets into `assets/offers/` until exact product matching, cu
 - Official product visual page: https://myapelsin.ru/
 - Source image: https://myapelsin.ru/_next/static/media/card.2cnpr2ngd6jqy.webp
 - Source file: official/alfa-apelsin-card.webp.
-- The asset is labelled «Карта Апельсин» on the official product site; embedded unchanged in compositions/alfa-apelsin-bonvera-preview.svg.
+- The asset is official «Карта Апельсин» product/brand artwork, but it is not a standalone plastic-card render; embedded unchanged in compositions/alfa-apelsin-bonvera-preview.svg.
 - Active catalog composition: assets/offers/cards/alfa_bank_apelsinovaya.svg.
 - Commercial reuse terms have not been separately documented.
 
@@ -60,6 +60,6 @@ Do not copy review assets into `assets/offers/` until exact product matching, cu
 - Official product page: https://www.ubrr.ru/chastnym-klientam/bankovskie-karty/debetovaya-karta-my-life
 - Official product visual: https://www.ubrr.ru/sites/default/files/ue/yubileynaya-desk-2.png
 - Source file: `official/ubrr-my-life-banner.png` (600×600).
-- Official page visual shows the Mir debit card for the named «Моя жизнь» product; composition preserves the original image unchanged.
+- Official page banner for the named «Моя жизнь» product; the card is small within a wide campaign image, not a standalone product render. The composition preserves the original image unchanged.
 - Active catalog composition: `assets/offers/cards/ubrir.svg`.
 - Commercial reuse terms have not been separately documented.

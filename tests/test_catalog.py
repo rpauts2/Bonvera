@@ -16,9 +16,40 @@ def test_offer_codes_are_unique():
     assert len(codes) == len(set(codes))
 
 def test_each_offer_has_unique_asset():
-    paths = [ROOT / "assets" / "offers" / x["category"] / f"{x['code']}.jpg" for x in DATA]
-    assert all(p.is_file() and p.stat().st_size > 8000 for p in paths)
-    assert len({p.name for p in paths}) == 93
+    paths = []
+    for offer in DATA:
+        base = ROOT / "assets" / "offers" / offer["category"] / offer["code"]
+        active = next((base.with_suffix(ext) for ext in (".svg", ".jpg", ".jpeg", ".webp", ".png") if base.with_suffix(ext).is_file()), None)
+        assert active is not None, offer["code"]
+        assert active.stat().st_size > 8000, offer["code"]
+        paths.append(active)
+    assert len({p.stem for p in paths}) == 93
+
+
+def test_offer_image_url_prefers_reviewed_svg_and_falls_back_to_jpg(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from bot.services import offer_image_url
+
+    monkeypatch.chdir(tmp_path)
+    folder = Path("assets/offers/cards")
+    folder.mkdir(parents=True)
+    svg = folder / "demo.svg"
+    jpg = folder / "demo.jpg"
+    svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>', encoding="utf-8")
+    jpg.write_bytes(b"legacy")
+    # The production seed records the default JPG path in Offer.image_path.
+    offer = SimpleNamespace(image_path="assets/offers/cards/demo.jpg", code="demo")
+    bank = SimpleNamespace(category="cards", slug="demo")
+
+    assert offer_image_url(offer, bank) == "/assets/offers/cards/demo.svg"
+    svg.unlink()
+    assert offer_image_url(offer, bank) == "/assets/offers/cards/demo.jpg"
+
+    custom = folder / "custom.jpg"
+    custom.write_bytes(b"custom")
+    offer.image_path = str(custom)
+    svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>', encoding="utf-8")
+    assert offer_image_url(offer, bank) == "/assets/offers/cards/custom.jpg"
 
 def test_user_reward_and_hold_are_exact_and_nonzero():
     assert all(x["reward"] > 0 for x in DATA)

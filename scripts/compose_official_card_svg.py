@@ -2,8 +2,8 @@
 """Wrap an official card render in a BONVERA visual stage without editing the card.
 
 The source image is embedded byte-for-byte in SVG. It is not recolored, redrawn,
-warped, cropped or retouched. This creates a review composition only; it does
-not grant rights to reuse the source in production.
+warped, cropped or retouched. The composition adds a BONVERA stage around the
+original asset. The script does not verify product details or image-use rights.
 """
 from __future__ import annotations
 import argparse
@@ -17,6 +17,7 @@ def main() -> None:
     parser.add_argument('--input', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--accent', default='#e7b94f')
+    parser.add_argument('--rotation', type=float, default=0.0, help='Rotate the whole source render subtly inside the scene')
     args = parser.parse_args()
     source = args.input.resolve()
     if not source.is_file():
@@ -43,7 +44,7 @@ def main() -> None:
 <ellipse cx="1110" cy="845" rx="560" ry="85" fill="{accent}" opacity=".09" filter="url(#blur)"/>
 <path d="M620 850 L820 770 H1450 L1630 850 L1450 910 H800Z" fill="#10152d" stroke="url(#rim)" stroke-width="3" opacity=".9"/>
 <path d="M760 910 L850 870 H1430 L1510 910 L1430 950 H850Z" fill="#090d1d" stroke="{accent}" stroke-opacity=".28" stroke-width="2"/>
-<image x="350" y="125" width="1120" height="700" preserveAspectRatio="xMidYMid meet" xlink:href="{data_uri}" filter="url(#shadow)"/>
+<image x="350" y="125" width="1120" height="700" preserveAspectRatio="xMidYMid meet" transform="rotate({args.rotation} 910 475)" xlink:href="{data_uri}" filter="url(#shadow)"/>
 <g fill="{accent}" opacity=".75"><circle cx="330" cy="280" r="5"/><circle cx="1530" cy="250" r="4"/><circle cx="1480" cy="670" r="6"/><circle cx="270" cy="690" r="3"/></g>
 </svg>'''
     args.output.parent.mkdir(parents=True, exist_ok=True)

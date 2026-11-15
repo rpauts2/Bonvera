@@ -22,13 +22,17 @@ Every offer image must look like a premium BONVERA campaign tile, not a flat log
 
 ## Current state (2026-11-15)
 
-- 14 user-generated bank-card promotional renders have been installed at the existing catalog filenames in `assets/offers/cards/`.
-- The 14 source images were 1920×1080 PNGs; they were converted to optimized 1600×900 progressive JPEGs (about 1.48 MB total) to keep Telegram Mini App and bot payloads lightweight.
-- The images are visually consistent with BONVERA's purple/gold campaign style and match the product labels supplied in their filenames. Their exact fidelity to currently issued physical bank cards has not been independently verified. Treat them as AI-generated promotional artwork, not official bank photography.
-- `psb.jpg` and `t_bank.jpg` were not included in the upload and remain unchanged legacy visuals.
-- All 93 expected paths remain present. Run `python3 scripts/validate_offer_images.py` after every replacement.
+Three card offers now have active, self-contained BONVERA SVG compositions embedding product images taken from their official product pages:
 
-The current art is suitable as a branded visual draft, but product-accuracy review is still required before claiming that every image depicts the exact issued card design.
+- cards/t_bank.svg — T-Bank Black.
+- cards/mts_dengi.svg — МТС Деньги debit card.
+- cards/sovkombank_halva.svg — Совкомбанк «Халва».
+
+The original JPG files remain as fallbacks. bot.services.offer_image_url() prefers the SVG when present, then falls back to JPG. The original source image bytes are embedded unchanged; the composition adds only the BONVERA stage, lighting, glow and shadow.
+
+The remaining 13 card offers still use the existing AI-generated or placeholder JPGs and require exact product/source review. The 71 MFO/CPL offers and 6 bookmaker offers still use their existing category visuals.
+
+All 93 offer codes continue to have an active image. Run python3 scripts/validate_offer_images.py after every replacement.
 
 ## Replacement workflow
 

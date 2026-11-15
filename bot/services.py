@@ -142,11 +142,21 @@ async def wallet_entries(s: Session, uid: int, limit: int = 200) -> list[dict]:
 
 
 def offer_image_url(o: Offer, bk: Bank) -> str:
-    if o.image_path and Path(o.image_path).exists():
+    image_base = Path("assets/offers") / bk.category / o.code
+    default_jpg = image_base.with_suffix(".jpg")
+    configured = Path(o.image_path) if o.image_path else None
+
+    # Seed stores the legacy per-offer JPG path in image_path. When that exact
+    # default is configured, prefer a reviewed SVG composition if one exists.
+    # Explicit admin/custom image_path values continue to take precedence.
+    if configured and configured.exists() and configured != default_jpg:
         return "/" + o.image_path.replace("\\", "/").lstrip("/")
-    default = Path("assets/offers") / bk.category / f"{o.code}.jpg"
-    if default.exists():
-        return "/" + default.as_posix()
+    for suffix in (".svg", ".jpg", ".jpeg", ".webp", ".png"):
+        candidate = image_base.with_suffix(suffix)
+        if candidate.exists():
+            return "/" + candidate.as_posix()
+    if configured and configured.exists():
+        return "/" + o.image_path.replace("\\", "/").lstrip("/")
     if bk.category == "bk":
         candidate = Path("assets/offers/bk") / BK_FALLBACK_IMAGES.get(bk.slug, "bk_blue.jpg")
         if candidate.exists():

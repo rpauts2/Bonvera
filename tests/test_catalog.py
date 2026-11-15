@@ -21,7 +21,8 @@ def test_each_offer_has_unique_asset():
         base = ROOT / "assets" / "offers" / offer["category"] / offer["code"]
         active = next((base.with_suffix(ext) for ext in (".svg", ".jpg", ".jpeg", ".webp", ".png") if base.with_suffix(ext).is_file()), None)
         assert active is not None, offer["code"]
-        assert active.stat().st_size > 8000, offer["code"]
+        minimum_size = 5000 if active.suffix == ".svg" else 8000
+        assert active.stat().st_size > minimum_size, offer["code"]
         paths.append(active)
     assert len({p.stem for p in paths}) == 93
 

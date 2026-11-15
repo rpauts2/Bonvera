@@ -22,17 +22,19 @@ Every offer image must look like a premium BONVERA campaign tile, not a flat log
 
 ## Current state (2026-11-15)
 
-Five card offers now have active, self-contained BONVERA SVG compositions embedding product images taken from their official product pages:
+Seven card offers now have active, self-contained BONVERA SVG compositions embedding product images taken from their official product pages:
 
 - cards/t_bank.svg — T-Bank Black.
 - cards/mts_dengi.svg — МТС Деньги debit card.
 - cards/sovkombank_halva.svg — Совкомбанк «Халва».
 - cards/psb.svg — ПСБ «Твой кешбэк» (the catalog campaign does not specify a narrower product variant).
 - cards/alfa_bank_apelsinovaya.svg — Альфа-Банк «Апельсиновая».
+- cards/vtb.svg — ВТБ, классическая дебетовая карта.
+- cards/ubrir.svg — УБРиР, карта «Моя жизнь».
 
 The original JPG files remain as fallbacks. bot.services.offer_image_url() prefers the SVG when present, then falls back to JPG. The original source image bytes are embedded unchanged; the composition adds only the BONVERA stage, lighting, glow and shadow.
 
-The remaining 11 card offers still use the existing AI-generated or placeholder JPGs and require exact product/source review. The 71 MFO/CPL offers and 6 bookmaker offers still use their existing category visuals.
+The remaining 9 card offers still use the existing AI-generated or placeholder JPGs and require exact product/source review. The 71 MFO/CPL offers and 6 bookmaker offers still use their existing category visuals.
 
 All 93 offer codes continue to have an active image. Run python3 scripts/validate_offer_images.py after every replacement.
 

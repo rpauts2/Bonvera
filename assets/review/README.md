@@ -46,3 +46,20 @@ Do not copy review assets into `assets/offers/` until exact product matching, cu
 - The asset is labelled «Карта Апельсин» on the official product site; embedded unchanged in compositions/alfa-apelsin-bonvera-preview.svg.
 - Active catalog composition: assets/offers/cards/alfa_bank_apelsinovaya.svg.
 - Commercial reuse terms have not been separately documented.
+
+
+## ВТБ — классическая дебетовая карта
+- Official current debit-card page: https://www.vtb.ru/personal/karty/debetovye/multikarta/
+- Official card render: https://www.vtb.ru/media-files/vtb.ru/sitepages/personal/karty/debetovye/multikarta/karty_c_classic_1x_des.webp
+- Source file: `official/vtb-classic-current.webp` (460×290).
+- Exact clean blue VTB card visual; no WB campaign or third-party promotion.
+- Active catalog composition: `assets/offers/cards/vtb.svg`.
+- Commercial reuse terms have not been separately documented.
+
+## УБРиР — «Моя жизнь»
+- Official product page: https://www.ubrr.ru/chastnym-klientam/bankovskie-karty/debetovaya-karta-my-life
+- Official product visual: https://www.ubrr.ru/sites/default/files/ue/yubileynaya-desk-2.png
+- Source file: `official/ubrr-my-life-banner.png` (600×600).
+- Official page visual shows the Mir debit card for the named «Моя жизнь» product; composition preserves the original image unchanged.
+- Active catalog composition: `assets/offers/cards/ubrir.svg`.
+- Commercial reuse terms have not been separately documented.

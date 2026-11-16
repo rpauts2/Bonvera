@@ -4,6 +4,7 @@ All money/ownership decisions happen server-side; the client only renders.
 Bearer sessions come from bot.tma_auth after HMAC-verified initData.
 """
 import time
+import re
 from collections import deque
 from datetime import datetime
 from io import BytesIO
@@ -25,6 +26,44 @@ from bot.tma_files import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _apply_response_headers(request, response):
+    """Apply security and cache policy to every response, including errors."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+
+    # Caddy terminates TLS in production. Trust the forwarded scheme only as
+    # a signal for HSTS; the application itself remains behind that proxy.
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "").split(",", 1)[0].strip().lower()
+    if request.scheme == "https" or forwarded_proto == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+
+    # Never weaken explicit policies (notably private evidence files).
+    if "Cache-Control" not in response.headers:
+        path = request.path
+        if path.startswith("/api/v1/"):
+            cache = "private, no-store"
+        elif path.startswith("/app/assets/") and re.search(r"-[A-Za-z0-9_-]{6,}\.", path):
+            cache = "public, max-age=31536000, immutable"
+        elif path == "/app" or path.startswith("/app/"):
+            cache = "no-cache"
+        elif path.startswith("/assets/offers/"):
+            cache = "public, max-age=86400"
+        else:
+            cache = None
+        if cache:
+            response.headers["Cache-Control"] = cache
+    return response
+
+
+@web.middleware
+async def headers_middleware(request, handler):
+    """Outer middleware so early auth/rate-limit responses get headers too."""
+    response = await handler(request)
+    return _apply_response_headers(request, response)
 
 
 def ok(data, status: int = 200):
@@ -616,8 +655,12 @@ async def spa_index(request):
 
 def setup_tma(app: web.Application, bot):
     app[BOT_KEY] = bot
+    app.middlewares.insert(0, headers_middleware)
     app.middlewares.append(api_middleware)
     r = app.router
+    async def root_redirect(_request):
+        return web.Response(status=302, headers={"Location": "/app"})
+    r.add_get("/", root_redirect)
     r.add_post("/api/v1/auth/telegram", auth_telegram)
     r.add_post("/api/v1/auth/logout", auth_logout)
     r.add_get("/api/v1/me", me)

@@ -18,7 +18,10 @@ test("admin workspace exposes operational sections and server-backed actions", a
   const admin = await read("pages/Admin.tsx");
   for (const label of ["Пользователи", "Заявки", "Выплаты", "Офферы", "Рассылки", "Финансы"]) assert.ok(admin.includes(label));
   assert.match(admin, /admin\/offers\/.*enabled/);
+  assert.match(admin, /admin\/applications\/.*action/);
   assert.match(admin, /admin\/payouts\/.*action/);
+  assert.match(admin, /admin\/broadcasts\/preview/);
+  assert.match(admin, /admin\/broadcasts\/send/);
   assert.match(admin, /window\.confirm/);
 });
 

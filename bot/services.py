@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 
 from bot.config import cfg
 from bot.db import (
-    App, Bank, DealEvent, Offer, PayoutEvent, PayoutReq, RefAcc, Session, Tier,
+    App, Bank, DealEvent, Offer, ProofFingerprint, PayoutEvent, PayoutReq, RefAcc, Session, Tier,
     User, WalletEntry, NEW, PROOF, HOLD, CONFIRMED, PAID, REJECTED, EXPIRED, RU,
 )
 from bot.logic import bank_taken, link, phone_decrypt
@@ -440,30 +440,36 @@ def image_phash(data: bytes) -> str | None:
         return None
 
 
-async def phash_duplicates(s: Session, ph: str) -> tuple[bool, bool, int]:
-    """Same anti-duplicate rule as the bot's proof_got: exact copy rejects,
-    distance <= 3 flags for manual admin review. Returns (exact, suspected, matches)."""
+async def phash_duplicates(s: Session, ph: str, offer_id: int) -> tuple[bool, bool, int]:
+    """Compare evidence only within one offer, across all retained history.
+
+    Exact duplicates are rejected. Near matches (Hamming distance <= 3) are
+    retained but flagged for manual review. Persistent indexed fingerprints
+    avoid the old arbitrary 500-deal search window.
+    """
     import imagehash
 
-    recent = (await s.execute(select(App).order_by(App.id.desc()).limit(500))).scalars().all()
+    rows = (await s.execute(
+        select(ProofFingerprint.phash).where(ProofFingerprint.offer_id == offer_id)
+    )).scalars().all()
     candidate = imagehash.hex_to_hash(ph)
     suspected = False
     matches = 0
-    for old in recent:
-        hashes = [x.get("hash") for x in (old.proof_files or []) if isinstance(x, dict) and x.get("hash")]
-        if old.proof_hash:
-            hashes.append(old.proof_hash)
-        for old_hash in set(hashes):
-            try:
-                distance = candidate - imagehash.hex_to_hash(old_hash)
-                if distance == 0:
-                    return True, True, matches + 1
-                if distance <= 3:
-                    suspected = True
-                    matches += 1
-            except Exception:
-                pass
+    for old_hash in rows:
+        try:
+            distance = candidate - imagehash.hex_to_hash(old_hash)
+            if distance == 0:
+                return True, True, matches + 1
+            if distance <= 3:
+                suspected = True
+                matches += 1
+        except Exception:
+            pass
     return False, suspected, matches
+
+
+def add_proof_fingerprint(s: Session, *, offer_id: int, app_id: int, user_id: int, ph: str) -> None:
+    s.add(ProofFingerprint(offer_id=offer_id, app_id=app_id, user_id=user_id, phash=ph))
 
 
 async def list_apps(s: Session, uid: int) -> list[dict]:

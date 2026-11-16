@@ -47,7 +47,30 @@ export default function Catalog() {
 
   return (
     <div>
-      <PageHeader title="Каталог" subtitle="Карты · Букмекеры · МФО · CPL · РКО" back="/" />
+      <PageHeader title="Каталог" subtitle="Выбирай предложение и получай вознаграждение" back="/" />
+
+      <section className="px-5 pb-4 pt-1">
+        <div className="relative overflow-hidden rounded-3xl border border-electric/15 bg-gradient-to-br from-[#142544] via-[#101a36] to-[#0a1124] p-4 shadow-card">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-electric/10 blur-3xl" />
+          <div className="relative flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-electric/20 bg-electric/10 text-electric">
+              <Icon name="spark" className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-extrabold text-white">Твой следующий бонус начинается здесь</h2>
+              <p className="mt-1 text-[11px] leading-relaxed text-indigo-200/70">
+                Сравни вознаграждение и условия. Перед оформлением покажем, что нужно сделать и какие подтверждения понадобятся.
+              </p>
+            </div>
+          </div>
+          {data && category !== "rko" && (
+            <div className="relative mt-3 flex items-center justify-between border-t border-white/[0.08] pt-3 text-[11px]">
+              <span className="text-indigo-200/65">Предложений в подборке</span>
+              <span className="font-extrabold text-electric">{data.length}</span>
+            </div>
+          )}
+        </div>
+      </section>
 
       <div className="space-y-3 px-5">
         {category !== "rko" && (
@@ -60,6 +83,16 @@ export default function Catalog() {
             onChange={(e) => setQ(e.target.value)}
             aria-label="Поиск предложений"
           />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[11px] font-bold text-electric"
+              aria-label="Очистить поиск"
+            >
+              Очистить
+            </button>
+          )}
         </div>
 
         )}
@@ -145,6 +178,14 @@ export default function Catalog() {
         </section>
       ) : (
       <div className="pt-4">
+        {data && data.length > 0 && (
+          <div className="flex items-center justify-between px-5 pb-3 text-[11px]">
+            <span className="text-indigo-300/65">
+              {category === "all" ? "Все предложения" : CATEGORIES.find((item) => item.key === category)?.label}
+            </span>
+            <span className="font-semibold text-indigo-100">{data.length} шт.</span>
+          </div>
+        )}
         {error && <ErrorState message={error} onRetry={() => void reload()} />}
         {loading && !data && <ListSkeleton rows={4} />}
         {data && data.length === 0 && (

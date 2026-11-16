@@ -28,9 +28,28 @@ export default function Wallet() {
               <div className="mt-1 text-[12px] text-indigo-300/70">
                 минимальная сумма вывода — {rub(data.summary.min_withdraw)}
               </div>
-              <Link to="/withdraw" className="btn-gold mt-4 w-full" onClick={() => haptic("medium")}>
-                <Icon name="arrow-up" className="h-4 w-4" /> Вывести по СБП
-              </Link>
+              {data.summary.available >= data.summary.min_withdraw ? (
+                <Link to="/withdraw" className="btn-gold mt-4 w-full" onClick={() => haptic("medium")}>
+                  <Icon name="arrow-up" className="h-4 w-4" /> Вывести по СБП
+                </Link>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-electric/20 bg-electric/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-indigo-100">
+                        До минимального вывода осталось {rub(data.summary.min_withdraw - data.summary.available)}
+                      </div>
+                      <div className="mt-1 text-[11px] leading-relaxed text-indigo-300/70">
+                        Вывод станет доступен, когда подтверждённый баланс достигнет {rub(data.summary.min_withdraw)}.
+                      </div>
+                    </div>
+                    <Icon name="arrow-up" className="h-5 w-5 shrink-0 text-electric" />
+                  </div>
+                  <Link to="/catalog" className="btn-primary mt-3 w-full" onClick={() => haptic("light")}>
+                    <Icon name="catalog" className="h-4 w-4" /> Выбрать предложение
+                  </Link>
+                </div>
+              )}
             </div>
           </section>
 

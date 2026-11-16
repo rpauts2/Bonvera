@@ -724,6 +724,26 @@ async def spa_index(request):
     return web.FileResponse(index)
 
 
+
+async def admin_overview(request):
+    """Read-only operational dashboard; all access is checked server-side."""
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа к панели администратора.", 403)
+    from sqlalchemy import func
+    async with Session() as s:
+        users_total = int((await s.execute(select(func.count(User.id)))).scalar() or 0)
+        users_active = int((await s.execute(select(func.count(User.id)).where(User.banned == False))).scalar() or 0)
+        offers_total = int((await s.execute(select(func.count(Offer.id)))).scalar() or 0)
+        offers_enabled = int((await s.execute(select(func.count(Offer.id)).where(Offer.enabled == True))).scalar() or 0)
+        apps_by_status = dict((await s.execute(select(App.status, func.count(App.id)).group_by(App.status))).all())
+        pending_payouts = int((await s.execute(select(func.count(PayoutReq.id)).where(PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0)
+        pending_sum = int((await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0)
+        recent_apps = (await s.execute(select(App).order_by(App.created.desc()).limit(8))).scalars().all()
+        recent_payouts = (await s.execute(select(PayoutReq).order_by(PayoutReq.created.desc()).limit(6))).scalars().all()
+        app_rows = [{"id": a.id, "user_id": a.user_id, "offer": (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}"), "status": a.status, "reward": a.cashback, "created": a.created.isoformat() if a.created else None} for a in recent_apps]
+        payout_rows = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "status": p.status, "created": p.created.isoformat() if p.created else None} for p in recent_payouts]
+    return ok({"users_total": users_total, "users_active": users_active, "offers_total": offers_total, "offers_enabled": offers_enabled, "apps_by_status": apps_by_status, "pending_payouts": pending_payouts, "pending_payouts_sum": pending_sum, "recent_apps": app_rows, "recent_payouts": payout_rows})
+
 def setup_tma(app: web.Application, bot):
     app[BOT_KEY] = bot
     app.middlewares.insert(0, headers_middleware)
@@ -735,6 +755,7 @@ def setup_tma(app: web.Application, bot):
     r.add_post("/api/v1/auth/telegram", auth_telegram)
     r.add_post("/api/v1/auth/logout", auth_logout)
     r.add_get("/api/v1/me", me)
+    r.add_get("/api/v1/admin/overview", admin_overview)
     r.add_post("/api/v1/me/accept", me_accept)
     r.add_put("/api/v1/me/age", me_age)
     r.add_put("/api/v1/me/sbp", me_sbp)

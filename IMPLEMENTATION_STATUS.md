@@ -311,3 +311,13 @@ AWS production, `main` и credentials не изменялись. Работа т
 - Добавлен / → /app (302). Обновлён health-тест под фактический расширенный health payload.
 - Проверки свежего checkout: 115 backend passed, 69 frontend passed, TypeScript + Vite production build успешны, валидатор ассетов: 100/100 уникальных, 7 официальных SVG проверены byte-for-byte, git diff --check чистый.
 - Известное предупреждение: в backend остаются DeprecationWarning от datetime.utcnow(); поведение не менялось в этом исправлении.
+
+
+## Этап Q — финансовый regression-test административного отказа выплаты (2026-11-16)
+
+- Добавлен сквозной тест `test_admin_payout_reject_returns_reserved_funds_once`: callback отказа по выплате → FSM с `payout_id` → ввод причины → возврат резерва → финансовая проводка `withdraw-refund:{id}` → событие аудита.
+- Тест отдельно проверяет повторную обработку закрытой выплаты: повторное зачисление запрещено, остаётся одна возвратная проводка и одно событие отказа.
+- Уточнение по аудиту: реализация `payout_reject` уже сохраняла корректный `payout_id`; найден был пробел в интеграционном покрытии, а не дефект обработчика.
+- Полная проверка свежего checkout: **116 backend passed**, **69 frontend passed**, `tsc --noEmit && vite build` успешно; валидатор изображений — **100/100 уникальных**, 7 официальных SVG-источников совпадают byte-for-byte; `git diff --check` чистый.
+- GitHub: commit `17a06651d3c339a253d3e7c58f8ae17a7207cd12` в `feat/bonvera-mini-app-v2`. `main` и AWS не затрагивались.
+- Остаются предупреждения `datetime.utcnow()` (DeprecationWarning); не менял модель времени без отдельной миграции/проверки совместимости PostgreSQL.

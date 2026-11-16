@@ -88,3 +88,37 @@ async def session_user_id(s: Session, token: str) -> int | None:
         )
     ).scalar_one_or_none()
     return row.user_id if row else None
+
+def verify_telegram_login(data: dict, bot_token: str, now: datetime | None = None) -> dict:
+    """Verify Telegram Login Widget payload using Telegram's documented HMAC scheme."""
+    if not isinstance(data, dict) or not bot_token:
+        raise InitDataError("empty", "Пустые данные авторизации.")
+    allowed = {"id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"}
+    if set(data) - allowed:
+        raise InitDataError("unknown_field", "Неизвестные поля авторизации.")
+    received_hash = data.get("hash")
+    if not isinstance(received_hash, str) or len(received_hash) != 64:
+        raise InitDataError("no_hash", "В данных авторизации отсутствует подпись.")
+    fields = {k: str(v) for k, v in data.items() if k != "hash" and v is not None}
+    check_string = "\n".join(f"{k}={fields[k]}" for k in sorted(fields))
+    secret = hashlib.sha256(bot_token.encode()).digest()
+    expected = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, received_hash):
+        raise InitDataError("bad_signature", "Подпись Telegram не прошла проверку.")
+    try:
+        user_id = int(fields.get("id", "0"))
+        auth_date = int(fields.get("auth_date", "0"))
+    except (TypeError, ValueError):
+        raise InitDataError("bad_user", "Некорректные данные пользователя.")
+    now_ts = (now or datetime.now(timezone.utc)).timestamp()
+    if user_id <= 0:
+        raise InitDataError("bad_user", "Некорректный Telegram ID.")
+    if auth_date <= 0:
+        raise InitDataError("bad_auth_date", "Некорректная дата авторизации.")
+    if auth_date > now_ts + FUTURE_SKEW_SECONDS:
+        raise InitDataError("future_auth_date", "Дата авторизации из будущего отклонена.")
+    if now_ts - auth_date > 600:
+        raise InitDataError("expired", "Данные авторизации устарели. Обнови страницу.")
+    return {"id": user_id, "first_name": fields.get("first_name", ""),
+            "last_name": fields.get("last_name", ""), "username": fields.get("username"),
+            "photo_url": fields.get("photo_url"), "auth_date": auth_date}

@@ -136,7 +136,7 @@ export default function Home({ initialData }: { initialData?: Dashboard } = {}) 
                     <div className="mt-1 truncate text-[13px] font-extrabold text-amber-glow tabular-nums">{rub(wallet?.hold ?? 0)}</div>
                   </div>
                   <div className="min-w-0 rounded-2xl border border-white/5 bg-navy-950/55 p-3">
-                    <div className="text-[10px] leading-tight text-indigo-300/70">Выплачено</div>
+                    <div className="text-[10px] leading-tight text-indigo-300/70">Всего выплачено</div>
                     <div className="mt-1 truncate text-[13px] font-extrabold text-emerald-glow tabular-nums">{rub(wallet?.paid_total ?? 0)}</div>
                   </div>
                 </div>

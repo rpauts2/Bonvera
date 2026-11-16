@@ -26,6 +26,12 @@ async def grant_bonus(s: Session, uid: int, amount: int, kind: str, ref: str, no
     u = (await s.execute(select(User).where(User.id == uid).with_for_update())).scalar_one_or_none()
     if u is None or u.banned:
         return None
+    # Recheck after acquiring the account lock. On PostgreSQL this closes the
+    # check-then-credit race between two different task/referral callbacks for
+    # the same user; the unique ref remains the final database-level guard.
+    exists = (await s.execute(select(WalletEntry).where(WalletEntry.ref == ref))).scalar_one_or_none()
+    if exists is not None:
+        return None
     u.balance += int(amount)
     e = WalletEntry(user_id=uid, amount=int(amount), kind=kind, ref=ref, note=note)
     s.add(e)

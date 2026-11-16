@@ -390,4 +390,6 @@ def test_referral_commission_separate_from_bonus(loop, client, offers):
     data = wallet_of(loop, client, ref_token)
     kinds = [e["kind"] for e in data["entries"]]
     assert kinds.count("referral") == 1 and kinds.count("task_ref_bonus") == 1
-    assert data["summary"]["available"] == int(500 * cfg.ref_pct / 100) + 100
+    expected_referral_total = int(500 * cfg.ref_pct / 100) + 100
+    assert data["summary"]["available"] == expected_referral_total
+    assert data["summary"]["referral_earned"] == expected_referral_total

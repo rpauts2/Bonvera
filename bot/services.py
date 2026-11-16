@@ -488,31 +488,55 @@ async def app_detail(s: Session, a: App) -> dict:
     return app_view(a, o, list(events), bk)
 
 
-async def create_withdrawal(s: Session, uid: int, amount, bank: str | None, phone: str | None) -> tuple[PayoutReq | None, str | None, str | None]:
-    """Same reserve mechanics as the bot's wd_amt: row lock, idempotent posting."""
+async def create_withdrawal(s: Session, uid: int, amount, bank: str | None, phone: str | None) -> tuple[PayoutReq | None, str | None, str | None, bool]:
+    """Reserve funds once; repeated identical active requests return the existing payout.
+
+    The user row lock serializes submissions for one account on PostgreSQL. This
+    also protects clients that retry after a timeout and accidentally submit the
+    same withdrawal twice. A different amount or destination remains a new request.
+    The final WalletEntry.ref unique constraint is still the ledger backstop.
+    """
     from bot.logic import phone_decrypt, phone_encrypt, phone_norm, phash
 
     if not isinstance(amount, int) or isinstance(amount, bool) or amount < cfg.min_wd:
-        return None, "bad_amount", f"Минимальная сумма вывода — {cfg.min_wd} ₽."
+        return None, "bad_amount", f"Минимальная сумма вывода — {cfg.min_wd} ₽.", False
     u = (await s.execute(select(User).where(User.id == uid).with_for_update())).scalar_one_or_none()
     if u is None:
-        return None, "no_user", "Пользователь не найден."
+        return None, "no_user", "Пользователь не найден.", False
     if u.banned:
-        return None, "banned", "Доступ ограничен."
-    if amount > int(u.balance or 0):
-        return None, "insufficient", f"Недостаточно доступных средств: {u.balance} ₽."
+        return None, "banned", "Доступ ограничен.", False
     chosen_bank = (bank or u.sbp_bank or "").strip()
     if not 2 <= len(chosen_bank) <= 80:
-        return None, "bad_bank", "Укажи корректный банк СБП (2–80 символов)."
+        return None, "bad_bank", "Укажи корректный банк СБП (2–80 символов).", False
     if phone is not None:
         normalized = phone_norm(str(phone))
         if len(normalized) != 11 or not normalized.isdigit():
-            return None, "bad_phone", "Нужен номер телефона из 11 цифр (например, +79991234567)."
+            return None, "bad_phone", "Нужен номер телефона из 11 цифр (например, +79991234567).", False
         encrypted = phone_encrypt(normalized)
     elif u.sbp_phone:
         encrypted = u.sbp_phone
     else:
-        return None, "no_phone", "Сначала укажи телефон СБП в настройках или в форме вывода."
+        return None, "no_phone", "Сначала укажи телефон СБП в настройках или в форме вывода.", False
+    normalized_destination = phone_decrypt(encrypted)
+    active = (await s.execute(
+        select(PayoutReq).where(
+            PayoutReq.user_id == u.id,
+            PayoutReq.amount == amount,
+            PayoutReq.bank == chosen_bank,
+            PayoutReq.status.in_(["pending", "processing", "review_required"]),
+        ).order_by(PayoutReq.id.desc()).with_for_update()
+    )).scalars().all()
+    for existing in active:
+        try:
+            same_destination = phone_decrypt(existing.phone) == normalized_destination
+        except Exception:
+            same_destination = False
+        if same_destination:
+            return existing, None, None, False
+
+    if amount > int(u.balance or 0):
+        return None, "insufficient", f"Недостаточно доступных средств: {u.balance} ₽.", False
+
     u.balance -= amount
     p = PayoutReq(user_id=u.id, amount=amount, phone=encrypted, bank=chosen_bank, status="pending")
     s.add(p)
@@ -521,7 +545,7 @@ async def create_withdrawal(s: Session, uid: int, amount, bank: str | None, phon
     s.add(PayoutEvent(payout_id=p.id, actor_id=u.id, event="created", from_status="", to_status="pending",
                       comment="Пользователь создал запрос на вывод через Mini App"))
     await s.commit()
-    return p, None, None
+    return p, None, None, True
 
 
 async def cancel_withdrawal(s: Session, uid: int, pid: int) -> tuple[PayoutReq | None, str | None, str | None]:

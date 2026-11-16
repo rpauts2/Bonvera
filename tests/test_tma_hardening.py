@@ -268,3 +268,82 @@ def test_concurrent_confirm_single_credit(loop, client, offers):
     assert kinds.count("cashback") == 1
     assert kinds.count("task_first_order") == 1
     assert event_count(loop, aid, "confirmed") == 1
+
+def test_admin_payout_reject_returns_reserved_funds_once(loop, client, offers, monkeypatch):
+    """The payout rejection FSM must route to payout refund, never deal rejection."""
+    uid = 940020
+    login(loop, client, uid)
+    pid = make_payout(loop, uid, amount=450, status="processing")
+    monkeypatch.setattr(cfg, "admins", [999001])
+
+    class FakeState:
+        def __init__(self):
+            self.data = {}
+            self.current = None
+
+        async def set_state(self, value):
+            self.current = value
+
+        async def update_data(self, **values):
+            self.data.update(values)
+
+        async def get_data(self):
+            return dict(self.data)
+
+        async def clear(self):
+            self.data.clear()
+            self.current = None
+
+    class FakeMessage:
+        text = "Перевод не выполнен: реквизиты не прошли проверку"
+
+        async def answer(self, *args, **kwargs):
+            pass
+
+    state = FakeState()
+
+    async def noop(*args, **kwargs):
+        pass
+
+    callback = SimpleNamespace(
+        data=f"adm:wdreject:{pid}",
+        from_user=SimpleNamespace(id=999001),
+        message=FakeMessage(),
+        answer=noop,
+    )
+    loop.run_until_complete(admin_mod.payout_reject(callback, state))
+    assert state.current == admin_mod.A.rej
+    assert state.data == {"payout_id": pid}
+
+    message = FakeMessage()
+    message.from_user = SimpleNamespace(id=999001)
+    loop.run_until_complete(admin_mod.rej_do(message, state, BotStub()))
+
+    async def verify():
+        async with Session() as s:
+            payout = await s.get(PayoutReq, pid)
+            user = await s.get(User, uid)
+            entries = (await s.execute(
+                select(WalletEntry).where(
+                    WalletEntry.user_id == uid,
+                    WalletEntry.ref == f"withdraw-refund:{pid}",
+                )
+            )).scalars().all()
+            events = (await s.execute(
+                select(PayoutEvent).where(
+                    PayoutEvent.payout_id == pid,
+                    PayoutEvent.event == "rejected",
+                )
+            )).scalars().all()
+            assert payout.status == "rejected"
+            assert payout.admin_note == message.text
+            assert user.balance == 450
+            assert len(entries) == 1 and entries[0].amount == 450
+            assert len(events) == 1
+
+    loop.run_until_complete(verify())
+
+    # Replaying the state handler cannot refund a closed payout again.
+    state.data = {"payout_id": pid}
+    loop.run_until_complete(admin_mod.rej_do(message, state, BotStub()))
+    loop.run_until_complete(verify())

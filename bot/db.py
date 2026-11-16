@@ -259,6 +259,17 @@ class OfferEvent(Base):
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class AdminAuditEvent(Base):
+    __tablename__ = "admin_audit_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    actor_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    details: Mapped[str] = mapped_column(Text, default="")
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
 class TmaSession(Base):
     __tablename__ = "tma_sessions"
     id: Mapped[int] = mapped_column(primary_key=True)

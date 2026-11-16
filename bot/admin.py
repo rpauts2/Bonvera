@@ -2,6 +2,9 @@ from datetime import datetime, timedelta
 import html
 from pathlib import Path
 import csv
+from io import BytesIO
+import re
+from PIL import Image, ImageOps
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -18,7 +21,7 @@ from bot.offer_rules import bk_approval_must_be_reset
 
 r = Router()
 class A(StatesGroup):
-    rej = State(); needinfo = State(); bc = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State()
+    rej = State(); needinfo = State(); bc = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State(); image = State()
 
 
 def _proof_input(item):
@@ -433,6 +436,7 @@ async def offer_adm(c: CallbackQuery):
         [("📊 ПСК (МФО)", f"adm:mfo:{oid}"), ("✅ Согласовано", f"adm:ap:{oid}")],
         [("✏️ Изменить условия/выплаты", f"adm:edit:{oid}")],
         [("🧾 Настроить проверку/скрины", f"adm:verify:{oid}")],
+        [("🖼 Изменить изображение", f"adm:image:{oid}")],
         [("🎁 Изменить бонус/примечание", f"adm:notes:{oid}")],
         [("⬅️ К списку", "adm:o")]))
     await c.answer()
@@ -573,6 +577,73 @@ async def edit_offer_do(m: Message, state: FSMContext):
         ) + ("; повторное согласование БК обязательно" if reset_bk_approval else ""))
         await s.commit()
     await state.clear(); await m.answer("Карточка оффера обновлена. Ссылка, условия, суммы и холд сохранены." + (" Согласование БК сброшено — до нового письменного подтверждения сделки недоступны." if reset_bk_approval else ""))
+
+@r.callback_query(F.data.startswith("adm:image:"))
+async def edit_offer_image(c: CallbackQuery, state: FSMContext):
+    if not adm(c.from_user.id): return
+    oid = int(c.data.split(":")[2])
+    async with Session() as s:
+        o = await s.get(Offer, oid)
+        if o is None:
+            await c.answer("Оффер не найден", show_alert=True)
+            return
+        code = o.code
+    await state.set_state(A.image)
+    await state.update_data(oid=oid)
+    await c.message.answer(
+        f"Пришли фотографию для оффера <b>{html.escape(code)}</b>. "
+        "Изображение будет безопасно пересохранено в JPEG, исходные метаданные удалятся. "
+        "Максимальный размер исходного файла — 8 МБ. Чтобы отменить, отправь /cancel."
+    )
+    await c.answer()
+
+
+@r.message(A.image)
+async def edit_offer_image_do(m: Message, state: FSMContext, bot: Bot):
+    if not adm(m.from_user.id): return
+    if (m.text or "").strip() == "/cancel":
+        await state.clear()
+        return await m.answer("Загрузка изображения отменена.")
+    if not m.photo:
+        return await m.answer("Нужно отправить именно фотографию Telegram, не документ. Для отмены — /cancel.")
+    photo = m.photo[-1]
+    if photo.file_size and photo.file_size > 8 * 1024 * 1024:
+        return await m.answer("Файл больше 8 МБ. Отправь изображение меньшего размера.")
+    data = await state.get_data()
+    oid = int(data.get("oid", 0))
+    try:
+        buf = BytesIO()
+        await bot.download(photo, destination=buf)
+        buf.seek(0)
+        with Image.open(buf) as source:
+            source.verify()
+        buf.seek(0)
+        with Image.open(buf) as source:
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+            output = BytesIO()
+            image.save(output, format="JPEG", quality=88, optimize=True)
+            output.seek(0)
+    except Exception:
+        return await m.answer("Не удалось прочитать изображение. Отправь обычную фотографию в формате JPEG/PNG/WebP.")
+
+    async with Session() as s:
+        o = await s.get(Offer, oid)
+        if o is None:
+            await state.clear()
+            return await m.answer("Оффер больше не найден. Загрузка отменена.")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", o.code or ""):
+            return await m.answer("У оффера некорректный системный код. Изображение не сохранено.")
+        target_dir = Path("assets/offers/custom")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / f"{o.code}.jpg"
+        target.write_bytes(output.getvalue())
+        o.image_path = target.as_posix()
+        await offer_audit(s, o.id, m.from_user.id, "image_changed", "Обновлено изображение оффера")
+        await s.commit()
+    await state.clear()
+    await m.answer("Изображение оффера обновлено. Оно будет показано в каталоге Mini App и карточке Telegram.")
+
 
 @r.callback_query(F.data.startswith("adm:notes:"))
 async def edit_notes(c: CallbackQuery, state: FSMContext):

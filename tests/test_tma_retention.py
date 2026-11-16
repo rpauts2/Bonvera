@@ -12,8 +12,9 @@ from sqlalchemy import select
 
 from bot import monitoring, tma_files
 from bot.config import cfg
-from bot.db import App, Bank, DealEvent, Offer, Session, Tier
+from bot.db import App, Bank, DealEvent, Offer, PayoutReq, Session, Tier
 from bot.retention import purge_expired_evidence
+from bot.logic import phone_encrypt
 from test_tma_api import (  # noqa: F401  (fixtures reused per-module)
     BotStub, _reset_limiters, client, db, get_json, login, loop, post_json, put_json,
 )
@@ -244,3 +245,48 @@ def test_export_command_sends_zip_only_to_admin(loop, client, ret_offers, proof_
     loop.run_until_complete(export_evidence(bad_msg, None))
     assert bad_msg.answers and "/export" in bad_msg.answers[0], "без id — подсказка по использованию"
     assert not bad_msg.documents
+
+
+class _ExportCallback:
+    def __init__(self, uid: int):
+        self.from_user = type("U", (), {"id": uid})()
+        self.data = "adm:csv"
+        self.documents = []
+        self.answers = []
+        self.message = self
+
+    async def answer_document(self, doc, caption=None, **kw):
+        self.documents.append((doc, caption))
+
+    async def answer(self, text=None, **kw):
+        self.answers.append(text)
+
+
+def test_payout_csv_export_is_admin_only_and_memory_only(loop, client, ret_offers, monkeypatch, tmp_path):
+    from bot.admin import export_csv
+
+    monkeypatch.setattr(cfg, "admins", [999002])
+
+    async def seed():
+        async with Session() as s:
+            s.add(PayoutReq(
+                user_id=880001, amount=450, phone=phone_encrypt("79991234567"),
+                bank="Т-Банк", status="paid", admin_note="Тестовый платёж",
+            ))
+            await s.commit()
+
+    loop.run_until_complete(seed())
+    admin = _ExportCallback(999002)
+    loop.run_until_complete(export_csv(admin))
+    assert len(admin.documents) == 1
+    document, caption = admin.documents[0]
+    assert document.filename.endswith(".csv")
+    data = document.data.decode("utf-8-sig")
+    assert "79991234567" in data
+    assert "Тестовый платёж" in data
+    assert "Храните файл безопасно" in caption
+    assert not list(tmp_path.rglob("payments-*.csv")), "экспорт не должен создавать plaintext-файл"
+
+    stranger = _ExportCallback(123456)
+    loop.run_until_complete(export_csv(stranger))
+    assert not stranger.documents

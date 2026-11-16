@@ -45,6 +45,22 @@ export default function Tasks() {
       {!data && !error && <ListSkeleton rows={4} />}
       {data && (
         <div className="space-y-3 px-5 pb-6">
+          <section className="relative overflow-hidden rounded-3xl border border-electric/15 bg-gradient-to-br from-[#142544] via-[#101a36] to-[#0a1124] p-4">
+            <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-electric/10 blur-3xl" />
+            <div className="relative flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-electric/75">Бонусные задания</div>
+                <div className="mt-1 text-2xl font-black text-white">{data.filter((task) => task.done).length}<span className="ml-1 text-sm font-semibold text-indigo-200/55">/ {data.length}</span></div>
+                <p className="mt-1 text-[11px] text-indigo-200/65">Выполнено и подтверждено</p>
+              </div>
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-electric/20 bg-electric/10 text-electric">
+                <Icon name="trophy" className="h-7 w-7" />
+              </div>
+            </div>
+            <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-navy-950/70">
+              <div className="h-full rounded-full bg-gradient-to-r from-royal-soft to-electric transition-all duration-700" style={{ width: `${data.length ? (data.filter((task) => task.done).length / data.length) * 100 : 0}%` }} />
+            </div>
+          </section>
           {data.map((t) => (
             <div key={t.key} className={`card-glass p-5 ${t.done ? "border-emerald-glow/30" : ""}`}>
               <div className="flex items-start gap-3">
@@ -59,6 +75,10 @@ export default function Tasks() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-bold">{t.title}</div>
                     <div className="shrink-0 text-base font-extrabold text-gold-gradient">+{t.reward} ₽</div>
+                  </div>
+                  <div className={`mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${t.done ? "text-emerald-glow" : "text-indigo-300/45"}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${t.done ? "bg-emerald-glow" : "bg-indigo-300/35"}`} />
+                    {t.done ? "Выполнено" : "Можно выполнить"}
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-indigo-200/60">{t.description}</p>
                 </div>

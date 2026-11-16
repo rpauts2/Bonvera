@@ -614,6 +614,8 @@ async def edit_offer_image_do(m: Message, state: FSMContext, bot: Bot):
     try:
         buf = BytesIO()
         await bot.download(photo, destination=buf)
+        if buf.tell() > 8 * 1024 * 1024:
+            return await m.answer("Скачанный файл больше 8 МБ. Отправь изображение меньшего размера.")
         buf.seek(0)
         with Image.open(buf) as source:
             source.verify()
@@ -860,3 +862,4 @@ async def support_queue(c: CallbackQuery):
             )
     await c.message.answer("\n".join(chunks))
     await c.answer()
+

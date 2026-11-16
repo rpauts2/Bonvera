@@ -106,9 +106,14 @@ async def wallet_summary(s: Session, uid: int) -> dict:
             select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.user_id == uid, PayoutReq.status == "paid")
         )
     ).scalar()
-    refs = (
+    commission = (
         await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == uid))
-    ).scalar()
+    ).scalar() or 0
+    payout_bonuses = (
+        await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(
+            WalletEntry.user_id == uid, WalletEntry.kind == "task_ref_bonus"))
+    ).scalar() or 0
+    refs = int(commission) + int(payout_bonuses)
     return {
         "available": int(u.balance or 0),
         "pending_setup": sum(reward_of(a) for a in apps if a.status == NEW),
@@ -730,9 +735,14 @@ async def dashboard(s: Session, uid: int, bot_username: str | None) -> dict:
     tasks = await task_states(s, uid)
     invited = (await s.execute(select(func.count(User.id)).where(User.referrer_id == uid))).scalar() or 0
     qualified = await qualified_friends_count(s, uid)
-    refs = (
+    commission = (
         await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == uid))
     ).scalar() or 0
+    payout_bonuses = (
+        await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(
+            WalletEntry.user_id == uid, WalletEntry.kind == "task_ref_bonus"))
+    ).scalar() or 0
+    refs = int(commission) + int(payout_bonuses)
     # Популярные предложения показываем независимо от доступности к оформлению:
     # у 87 из 93 офферов ещё нет проверенной партнёрской ссылки, и из-за
     # available_only главная выглядела поломкой, хотя каталог отдаёт все 93.

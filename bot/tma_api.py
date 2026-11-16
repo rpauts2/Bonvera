@@ -20,12 +20,12 @@ from sqlalchemy.exc import IntegrityError
 from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
-from bot.db import App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, Tier, User, WalletEntry
+from bot.db import AdminAuditEvent, App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, Tier, User, WalletEntry
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data, verify_telegram_login
 from bot.tma_files import (
-    IMAGE_EXT, MAX_FILES_PER_UPLOAD, FileError, resolve_proof, safe_ext, store_proof,
+    ALLOWED_EXT, IMAGE_EXT, MAX_FILES_PER_UPLOAD, FileError, resolve_proof, safe_ext, store_proof,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -806,16 +806,24 @@ async def admin_section(request):
             data = [{"id": u.id, "name": u.name or "", "username": u.username or "", "balance": u.balance, "banned": u.banned, "created": u.created.isoformat() if u.created else None, "referrer_id": u.referrer_id} for u in rows]
         elif section == "offers":
             rows = (await s.execute(select(Offer, Bank).join(Bank, Offer.bank_id == Bank.id).order_by(Offer.sort, Offer.id.desc()).limit(200))).all()
-            data = [{"id": o.id, "name": o.name, "code": o.code, "bank": b.name, "category": b.category, "enabled": o.enabled, "network_status": o.network_status, "url": o.url, "approval": o.approval, "hold": o.hold, "age_min": o.age_min, "age_max": o.age_max} for o, b in rows]
+            offer_ids = [o.id for o, _b in rows]
+            tier_rows = (await s.execute(select(Tier).where(Tier.offer_id.in_(offer_ids)).order_by(Tier.id))).scalars().all() if offer_ids else []
+            tier_by_offer = {}
+            for tier in tier_rows:
+                tier_by_offer.setdefault(tier.offer_id, tier)
+            data = [{"id": o.id, "name": o.name, "code": o.code, "bank": b.name, "category": b.category, "enabled": o.enabled, "network_status": o.network_status, "url": o.url, "approval": o.approval, "hold": o.hold, "age_min": o.age_min, "age_max": o.age_max, "network_payout": tier_by_offer[o.id].payout if o.id in tier_by_offer else 0, "user_reward": tier_by_offer[o.id].cashback if o.id in tier_by_offer else 0} for o, b in rows]
         elif section == "applications":
             rows = (await s.execute(select(App).order_by(App.created.desc()).limit(200))).scalars().all()
-            data = [{"id": a.id, "user_id": a.user_id, "offer": (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}"), "status": a.status, "payout": a.payout, "cashback": a.cashback, "created": a.created.isoformat() if a.created else None, "reason": a.reason} for a in rows]
+            data = [{"id": a.id, "user_id": a.user_id, "offer": (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}"), "status": a.status, "payout": a.payout, "cashback": a.cashback, "created": a.created.isoformat() if a.created else None, "reason": a.reason, "proof_files": [{"index": i, "name": str(item.get("name") or item.get("label") or f"Доказательство {i+1}"), "label": str(item.get("label") or ""), "uploaded_at": item.get("uploaded_at")} for i, item in enumerate(a.proof_files or []) if isinstance(item, dict)]} for a in rows]
         elif section == "payouts":
             rows = (await s.execute(select(PayoutReq).order_by(PayoutReq.created.desc()).limit(200))).scalars().all()
             data = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "bank": p.bank, "status": p.status, "admin_note": p.admin_note, "created": p.created.isoformat() if p.created else None, "paid_at": p.paid_at.isoformat() if p.paid_at else None} for p in rows]
         elif section == "broadcasts":
             rows = (await s.execute(select(BroadcastCampaign).order_by(BroadcastCampaign.created.desc()).limit(100))).scalars().all()
             data = [{"id": c.id, "admin_id": c.admin_id, "audience": c.audience, "recipient_count": c.recipient_count, "sent_count": c.sent_count, "failed_count": c.failed_count, "status": "sending" if c.id in BROADCAST_TASKS else ("completed" if c.sent_count + c.failed_count >= c.recipient_count else "interrupted"), "created": c.created.isoformat() if c.created else None} for c in rows]
+        elif section == "audit":
+            rows = (await s.execute(select(AdminAuditEvent).order_by(AdminAuditEvent.created.desc(), AdminAuditEvent.id.desc()).limit(300))).scalars().all()
+            data = [{"id": e.id, "actor_id": e.actor_id, "action": e.action, "target_type": e.target_type, "target_id": e.target_id, "details": e.details, "created": e.created.isoformat() if e.created else None} for e in rows]
         elif section == "finance":
             credits = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
             debits = int((await s.execute(select(func.coalesce(func.sum(-WalletEntry.amount), 0)).where(WalletEntry.amount < 0))).scalar() or 0)
@@ -825,6 +833,73 @@ async def admin_section(request):
         else:
             return err("not_found", "Раздел не найден.", 404)
     return ok({"section": section, "items": data})
+
+
+async def _admin_audit(session, actor_id: int, action: str, target_type: str, target_id, details: str = ""):
+    session.add(AdminAuditEvent(actor_id=actor_id, action=action[:50], target_type=target_type[:30], target_id=str(target_id)[:80], details=details[:2000]))
+
+
+async def admin_user_action(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        uid = int(request.match_info["id"])
+        body = await request.json()
+    except Exception:
+        return err("bad_request", "Некорректный запрос.")
+    action = body.get("action") if isinstance(body, dict) else None
+    if action not in {"ban", "unban"}:
+        return err("bad_action", "Допустимые действия: ban, unban.")
+    if action == "ban" and uid in cfg.admins:
+        return err("admin_protected", "Нельзя заблокировать аккаунт администратора.", 409)
+    async with Session() as s:
+        user = (await s.execute(select(User).where(User.id == uid).with_for_update())).scalar_one_or_none()
+        if user is None:
+            return err("not_found", "Пользователь не найден.", 404)
+        banned = action == "ban"
+        if user.banned == banned:
+            return ok({"id": uid, "banned": banned, "unchanged": True})
+        user.banned = banned
+        await _admin_audit(s, request["uid"], action, "user", uid, "Изменён статус доступа пользователя через веб-админку")
+        await s.commit()
+    return ok({"id": uid, "banned": banned})
+
+
+async def admin_proof_file(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        aid, idx = int(request.match_info["id"]), int(request.match_info["idx"])
+    except (TypeError, ValueError):
+        return err("not_found", "Файл не найден.", 404)
+    async with Session() as s:
+        app = await s.get(App, aid)
+        if app is None:
+            return err("not_found", "Заявка не найдена.", 404)
+        items = [x for x in (app.proof_files or []) if isinstance(x, dict)]
+        if not 0 <= idx < len(items):
+            return err("not_found", "Файл не найден.", 404)
+        item = items[idx]
+    headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline"}
+    storage = item.get("storage")
+    if storage:
+        try:
+            path = resolve_proof(storage)
+        except FileError:
+            return err("not_found", "Файл не найден.", 404)
+        return web.FileResponse(path, headers=headers)
+    fid = item.get("file_id")
+    if fid:
+        try:
+            file = await request.app[BOT_KEY].get_file(fid)
+            buf = BytesIO()
+            await request.app[BOT_KEY].download_file(file.file_path, destination=buf)
+        except Exception:
+            return err("telegram_unavailable", "Файл из Telegram временно недоступен.", 502)
+        name = str(item.get("name") or "").lower()
+        ctype = ALLOWED_EXT.get(Path(name).suffix, "application/octet-stream")
+        return web.Response(body=buf.getvalue(), content_type=ctype, headers=headers)
+    return err("not_found", "Файл не найден.", 404)
 
 
 async def admin_app_action(request):
@@ -863,6 +938,8 @@ async def admin_app_action(request):
                 return err("reward_not_configured", str(exc), 409)
             if not done:
                 return err("already_processed", "Заявка уже обработана другим действием.", 409)
+            await _admin_audit(s, request["uid"], "application_confirmed", "application", deal.id, "Награда начислена через веб-админку")
+            await s.commit()
             return ok({"id": app_id, "status": "confirmed"})
         if action == "hold":
             if old not in ("proof", "hold"):
@@ -886,6 +963,7 @@ async def admin_app_action(request):
                 deal.verification = verification
                 comment = f"Ручной холд {days} дней через веб-админку; ожидается решение сети"
             s.add(DealEvent(app_id=deal.id, actor_id=request["uid"], event="hold_set", from_status=old, to_status=deal.status, comment=comment))
+            await _admin_audit(s, request["uid"], "application_hold", "application", deal.id, comment)
             await s.commit()
             await notify(bot, deal.user_id, f"⏳ Заявка #{deal.id} переведена в холд до {deal.hold_until:%d.%m.%Y}. Ожидаем проверку партнёрской сети.")
             return ok({"id": app_id, "status": "hold"})
@@ -898,6 +976,7 @@ async def admin_app_action(request):
         deal.status, deal.reason = "rejected", reason
         deal.reviewed_by, deal.reviewed_at = request["uid"], datetime.utcnow()
         s.add(DealEvent(app_id=deal.id, actor_id=request["uid"], event="rejected", from_status=old, to_status="rejected", comment=reason))
+        await _admin_audit(s, request["uid"], "application_rejected", "application", deal.id, reason)
         user_id = deal.user_id
         await s.commit()
     await notify(bot, user_id, f"❌ Заявка #{app_id} отклонена.\nПричина: {reason}\nЕсть вопросы? Открой сделку и напиши в поддержку.")
@@ -984,8 +1063,10 @@ async def admin_broadcast_send(request):
         source = await bot.send_message(chat_id=request["uid"], text=message.strip(), reply_markup=keyboard)
         campaign = BroadcastCampaign(admin_id=request["uid"], source_chat_id=request["uid"], source_message_id=source.message_id, audience=audience, recipient_count=len(recipient_ids))
         s.add(campaign)
-        await s.commit()
+        await s.flush()
         campaign_id = campaign.id
+        await _admin_audit(s, request["uid"], "broadcast_started", "broadcast", campaign_id, f"Аудитория: {audience}; получателей: {len(recipient_ids)}; длина текста: {len(message.strip())}")
+        await s.commit()
     task = asyncio.create_task(_run_admin_broadcast(campaign_id, bot, recipient_ids, request["uid"], source.message_id, keyboard))
     BROADCAST_TASKS[campaign_id] = task
     return ok({"id": campaign_id, "recipient_count": len(recipient_ids), "status": "sending"}, 202)
@@ -1019,8 +1100,86 @@ async def admin_offer_enabled(request):
             return ok({"id": offer.id, "enabled": offer.enabled, "unchanged": True})
         offer.enabled = enabled
         s.add(OfferEvent(offer_id=offer.id, actor_id=request["uid"], event="enabled" if enabled else "disabled", details="Изменено через веб-админку"))
+        await _admin_audit(s, request["uid"], "offer_enabled" if enabled else "offer_disabled", "offer", offer.id, offer.name)
         await s.commit()
         return ok({"id": offer.id, "enabled": offer.enabled})
+
+
+async def admin_offer_update(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        offer_id = int(request.match_info["id"])
+        body = await request.json()
+    except Exception:
+        return err("bad_request", "Некорректный запрос.")
+    if not isinstance(body, dict):
+        return err("bad_json", "Некорректный запрос.")
+    allowed = {"name": (160, True), "url": (2000, False), "action": (10000, False), "rules": (10000, False), "condition_text": (3000, False)}
+    values = {}
+    for key, (limit, required) in allowed.items():
+        if key in body:
+            value = body[key]
+            if not isinstance(value, str) or len(value.strip()) > limit or (required and not value.strip()):
+                return err("bad_field", f"Поле {key}: некорректное значение.")
+            values[key] = value.strip()
+    if "url" in values and values["url"] and not values["url"].startswith(("https://", "http://")):
+        return err("bad_url", "Партнёрская ссылка должна начинаться с http:// или https://.")
+    for key, low, high in (("hold", 0, 365), ("age_min", 18, 120), ("age_max", 18, 120), ("network_payout", 0, 100000000), ("user_reward", 1, 100000000)):
+        if key in body:
+            value = body[key]
+            if not isinstance(value, int) or isinstance(value, bool) or not low <= value <= high:
+                return err("bad_field", f"Поле {key}: значение вне допустимого диапазона.")
+            values[key] = value
+    if not values:
+        return err("empty_update", "Нет полей для изменения.")
+    async with Session() as s:
+        offer = (await s.execute(select(Offer).where(Offer.id == offer_id).with_for_update())).scalar_one_or_none()
+        if offer is None:
+            return err("not_found", "Оффер не найден.", 404)
+        bank = await s.get(Bank, offer.bank_id)
+        next_age_min = values.get("age_min", offer.age_min)
+        next_age_max = values.get("age_max", offer.age_max)
+        if next_age_min > next_age_max:
+            return err("bad_age_range", "Минимальный возраст не может быть выше максимального.")
+        next_url = values.get("url", offer.url)
+        if offer.enabled and (not next_url or not next_url.startswith(("https://", "http://"))):
+            return err("missing_partner_url", "Нельзя оставить активный оффер без партнёрской ссылки.", 409)
+        if bank and bank.category == "bk" and offer.enabled and (offer.network_status != "approved" or not offer.approval.strip()):
+            return err("bookmaker_not_approved", "Сначала зафиксируй согласование партнёра.", 409)
+        current_tier = (await s.execute(select(Tier).where(Tier.offer_id == offer.id).order_by(Tier.id))).scalars().first()
+        before = {
+            "name": offer.name, "condition": offer.condition_text or offer.action,
+            "network_payout": current_tier.payout if current_tier else 0, "user_reward": current_tier.cashback if current_tier else 0, "hold_days": offer.hold,
+            "minimum": offer.purchase_min, "age_min": offer.age_min, "age_max": offer.age_max,
+            "tracking_param": offer.link_param, "partner_url": offer.url, "source_url": offer.source_url,
+        }
+        after = dict(before)
+        after.update({"name": values.get("name", offer.name), "condition": values.get("condition_text", values.get("action", offer.condition_text or offer.action)), "network_payout": values.get("network_payout", before["network_payout"]), "user_reward": values.get("user_reward", before["user_reward"]), "hold_days": values.get("hold", offer.hold), "age_min": next_age_min, "age_max": next_age_max, "partner_url": next_url, "source_url": values.get("source_url", offer.source_url)})
+        from bot.offer_rules import bk_approval_must_be_reset
+        reset_approval = bk_approval_must_be_reset(bank.category if bank else "", before, after)
+        for key, value in values.items():
+            if key in {"network_payout", "user_reward"}:
+                continue
+            setattr(offer, key, value)
+        if "network_payout" in values or "user_reward" in values:
+            if current_tier is None:
+                current_tier = Tier(offer_id=offer.id, payout=after["network_payout"], cashback=after["user_reward"])
+                s.add(current_tier)
+            else:
+                current_tier.payout = after["network_payout"]
+                current_tier.cashback = after["user_reward"]
+        if reset_approval:
+            offer.network_status = "needs_approval"
+            offer.approval = "Старое согласование сброшено после изменения существенных условий. Требуется повторное письменное подтверждение."
+            offer.terms_checked_at = None
+            offer.enabled = False
+            s.add(OfferEvent(offer_id=offer.id, actor_id=request["uid"], event="approval_reset", details="Существенные условия изменены; оффер отключён до нового письменного согласования"))
+        summary = ", ".join(sorted(values.keys()))
+        s.add(OfferEvent(offer_id=offer.id, actor_id=request["uid"], event="updated", details=f"Поля: {summary}"))
+        await _admin_audit(s, request["uid"], "offer_updated", "offer", offer.id, f"Изменены поля: {summary}" + ("; согласование сброшено, оффер отключён" if reset_approval else ""))
+        await s.commit()
+        return ok({"id": offer.id, "name": offer.name, "url": offer.url, "action": offer.action, "rules": offer.rules, "hold": offer.hold, "age_min": offer.age_min, "age_max": offer.age_max, "network_payout": after["network_payout"], "user_reward": after["user_reward"], "condition_text": offer.condition_text, "enabled": offer.enabled, "network_status": offer.network_status, "approval_reset": reset_approval})
 
 
 async def admin_payout_action(request):
@@ -1031,8 +1190,8 @@ async def admin_payout_action(request):
     except Exception:
         return err("bad_json", "Некорректный запрос.")
     action = body.get("action") if isinstance(body, dict) else None
-    if action not in {"take", "paid"}:
-        return err("bad_action", "Допустимые действия: take, paid.")
+    if action not in {"take", "paid", "reject"}:
+        return err("bad_action", "Допустимые действия: take, paid, reject.")
     try:
         payout_id = int(request.match_info["id"])
     except (TypeError, ValueError):
@@ -1050,9 +1209,32 @@ async def admin_payout_action(request):
             payout.processed_by = request["uid"]
             payout.updated_at = datetime.utcnow()
             s.add(PayoutEvent(payout_id=payout.id, actor_id=request["uid"], event="taken", from_status=old, to_status="processing", comment="Администратор взял запрос в работу через веб-панель"))
+            await _admin_audit(s, request["uid"], "payout_taken", "payout", payout.id, f"Сумма: {payout.amount} ₽")
             await s.commit()
             await notify(request.app[BOT_KEY], payout.user_id, f"🔄 Запрос на вывод #{payout.id} взят в обработку. Сумма {payout.amount} ₽ зарезервирована.")
             return ok({"id": payout.id, "status": payout.status})
+        if action == "reject":
+            reason = body.get("reason", "") if isinstance(body, dict) else ""
+            reason = reason.strip() if isinstance(reason, str) else ""
+            if not reason or len(reason) > 1500:
+                return err("bad_reason", "Для отказа укажи причину длиной до 1500 символов.")
+            if old not in ("pending", "processing", "review_required"):
+                return err("invalid_status", "Этот запрос уже закрыт; повторный возврат запрещён.", 409)
+            user = (await s.execute(select(User).where(User.id == payout.user_id).with_for_update())).scalar_one_or_none()
+            if user is None:
+                return err("user_not_found", "Пользователь не найден.", 409)
+            payout.status, payout.admin_note, payout.updated_at, payout.processed_by = "rejected", reason, datetime.utcnow(), request["uid"]
+            refund_ref = f"withdraw-refund:{payout.id}"
+            exists = (await s.execute(select(WalletEntry).where(WalletEntry.ref == refund_ref))).scalar_one_or_none()
+            if not exists:
+                user.balance += payout.amount
+                s.add(WalletEntry(user_id=user.id, amount=payout.amount, kind="withdraw_refund", ref=refund_ref, note="Возврат отклонённой выплаты"))
+            s.add(PayoutEvent(payout_id=payout.id, actor_id=request["uid"], event="rejected", from_status=old, to_status="rejected", comment=reason))
+            await _admin_audit(s, request["uid"], "payout_rejected_refunded", "payout", payout.id, f"{payout.amount} ₽ возвращены на баланс. Причина: {reason}")
+            user_id, amount = payout.user_id, payout.amount
+            await s.commit()
+            await notify(request.app[BOT_KEY], user_id, f"❌ Запрос на вывод #{payout_id} отклонён.\nПричина: {reason}\n{amount} ₽ возвращены на доступный баланс.")
+            return ok({"id": payout_id, "status": "rejected", "refunded": amount})
         if old not in ("processing", "review_required"):
             return err("invalid_status", "Сначала возьми запрос в работу. Уже закрытый запрос нельзя отметить выплаченным.", 409)
         payout.status = "paid"
@@ -1061,6 +1243,7 @@ async def admin_payout_action(request):
         payout.processed_by = request["uid"]
         comment = "Фактический банковский перевод подтверждён администратором через веб-панель"
         s.add(PayoutEvent(payout_id=payout.id, actor_id=request["uid"], event="paid", from_status=old, to_status="paid", comment=comment))
+        await _admin_audit(s, request["uid"], "payout_marked_paid", "payout", payout.id, f"Фактический перевод подтверждён: {payout.amount} ₽")
         from bot.bonuses import referral_payout_bonus
         referral = await referral_payout_bonus(s, payout)
         user_id, amount = payout.user_id, payout.amount
@@ -1091,9 +1274,12 @@ def setup_tma(app: web.Application, bot):
     r.add_get("/api/v1/admin/overview", admin_overview)
     r.add_get("/api/v1/admin/section/{section}", admin_section)
     r.add_post("/api/v1/admin/applications/{id}/action", admin_app_action)
+    r.add_get("/api/v1/admin/applications/{id}/proof/{idx}", admin_proof_file)
+    r.add_post("/api/v1/admin/users/{id}/action", admin_user_action)
     r.add_post("/api/v1/admin/broadcasts/preview", admin_broadcast_preview)
     r.add_post("/api/v1/admin/broadcasts/send", admin_broadcast_send)
     r.add_put("/api/v1/admin/offers/{id}/enabled", admin_offer_enabled)
+    r.add_put("/api/v1/admin/offers/{id}", admin_offer_update)
     r.add_post("/api/v1/admin/payouts/{id}/action", admin_payout_action)
     r.add_post("/api/v1/me/accept", me_accept)
     r.add_put("/api/v1/me/age", me_age)

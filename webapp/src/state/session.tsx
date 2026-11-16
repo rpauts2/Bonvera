@@ -62,9 +62,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    setSession(null);
-    setUser(null);
-    void login();
+    // Revoke the server-side session before clearing the local bearer token.
+    void api.post<{ logged_out: boolean }>("/auth/logout").catch(() => undefined).finally(() => {
+      setSession(null);
+      setUser(null);
+      void login();
+    });
   }, [login]);
 
   useEffect(() => {

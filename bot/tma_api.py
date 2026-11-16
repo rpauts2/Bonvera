@@ -10,16 +10,16 @@ from io import BytesIO
 from pathlib import Path
 
 from aiohttp import web
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
-from bot.db import App, Bank, DealEvent, Offer, PayoutEvent, PayoutReq, Session, User
+from bot.db import App, Bank, DealEvent, Offer, PayoutEvent, PayoutReq, Session, TmaSession, User
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
-from bot.tma_auth import InitDataError, create_session, session_user_id, verify_init_data
+from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data
 from bot.tma_files import (
     IMAGE_EXT, MAX_FILES_PER_UPLOAD, FileError, resolve_proof, safe_ext, store_proof,
 )
@@ -97,44 +97,8 @@ async def api_middleware(request, handler):
     if not api_limiter.allow(f"u{uid}"):
         return err("rate_limited", "Слишком много запросов. Подожди немного.", 429)
     request["uid"] = uid
+    request["session_token"] = token
     return await handler(request)
-
-
-def _apply_response_headers(request, resp) -> None:
-    """Security + cache headers for every response (API, SPA, static, errors).
-
-    X-Frame-Options / CSP frame-ancestors намеренно не ставятся: Telegram Web
-    открывает Mini App в iframe, и запрет фреймов сломал бы запуск.
-    """
-    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
-    if proto == "https":
-        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-    if "Cache-Control" in resp.headers:
-        return  # не переопределяем явные заголовки (например private no-store у доказательств)
-    path = request.path
-    if path.startswith("/api/v1"):
-        resp.headers["Cache-Control"] = "private, no-store"
-    elif path.startswith("/app/assets/"):
-        # hashed-ассеты сборки: имя меняется при каждом билде → можно кэшировать навсегда
-        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    elif path == "/app" or path.startswith("/app/"):
-        # index.html должен перевалидироваться, чтобы подхватить новую сборку
-        resp.headers["Cache-Control"] = "no-cache"
-    elif path.startswith("/assets/"):
-        resp.headers["Cache-Control"] = "public, max-age=86400"
-
-
-@web.middleware
-async def headers_middleware(request, handler):
-    try:
-        resp = await handler(request)
-    except web.HTTPException as exc:
-        _apply_response_headers(request, exc)
-        raise
-    _apply_response_headers(request, resp)
-    return resp
 
 
 async def auth_telegram(request):
@@ -170,6 +134,17 @@ async def auth_telegram(request):
         token, expires = await create_session(s, uid)
         profile = await services.user_profile(s, u)
     return ok({"token": token, "expires_at": expires.isoformat(), "user": profile})
+
+
+async def auth_logout(request):
+    """Revoke the current opaque bearer session server-side."""
+    async with Session() as s:
+        await s.execute(delete(TmaSession).where(
+            TmaSession.token_hash == token_hash(request["session_token"]),
+            TmaSession.user_id == request["uid"],
+        ))
+        await s.commit()
+    return ok({"logged_out": True})
 
 
 async def me(request):
@@ -642,15 +617,9 @@ async def spa_index(request):
 def setup_tma(app: web.Application, bot):
     app[BOT_KEY] = bot
     app.middlewares.append(api_middleware)
-    # headers_middleware — внешний: покрывает и ранние ответы api_middleware (401/429), и статику
-    app.middlewares.insert(0, headers_middleware)
     r = app.router
-
-    async def root_redirect(request):
-        raise web.HTTPFound("/app")
-
-    r.add_get("/", root_redirect)
     r.add_post("/api/v1/auth/telegram", auth_telegram)
+    r.add_post("/api/v1/auth/logout", auth_logout)
     r.add_get("/api/v1/me", me)
     r.add_post("/api/v1/me/accept", me_accept)
     r.add_put("/api/v1/me/age", me_age)

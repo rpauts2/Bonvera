@@ -138,6 +138,14 @@ def test_auth_creates_user_and_me(loop, client):
     assert status == 401
 
 
+def test_logout_revokes_server_session(loop, client):
+    token, _ = login(loop, client, 910099)
+    status, body = post_json(loop, client, "/api/v1/auth/logout", token)
+    assert status == 200 and body["data"]["logged_out"] is True
+    status, body = get_json(loop, client, "/api/v1/me", token)
+    assert status == 401 and body["err"]["code"] == "unauthorized"
+
+
 def test_auth_rejects_bad_signature(loop, client):
     signed = init_data_for(910002)
     from urllib.parse import parse_qsl, urlencode
@@ -334,11 +342,7 @@ def test_session_helpers(loop, db):
 def test_health(loop, client):
     resp = loop.run_until_complete(client.get("/health"))
     assert resp.status == 200
-    body = loop.run_until_complete(resp.json())
-    assert body["ok"] is True
-    assert body["db_live"] is True
-    for key in ("db", "telegram", "web", "last_check", "started_at"):
-        assert key in body
+    assert loop.run_until_complete(resp.json()) == {"ok": True}
 
 
 def test_spa_route_responds(loop, client):

@@ -258,7 +258,11 @@ def test_proof_upload_dedup_and_stream(loop, client, offers):
     assert loop.run_until_complete(resp.read()) == first
     assert resp.headers["Cache-Control"] == "private, no-store"
 
-    status, body = upload(loop, client, token, aid, [("copy.png", first)])
+    # Re-encoding/resizing the same screenshot must not bypass the visual hash.
+    from PIL import Image
+    jpeg_buf = io.BytesIO()
+    Image.open(io.BytesIO(first)).resize((128, 128)).save(jpeg_buf, "JPEG", quality=65)
+    status, body = upload(loop, client, token, aid, [("copy.jpg", jpeg_buf.getvalue())])
     assert status == 409 and body["err"]["code"] == "duplicate_proof"
 
     # A fresh Telegram account cannot reuse the same document for the same offer.

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useLoad } from "../lib/useLoad";
 import type { Leaderboard as LeaderboardData } from "../lib/types";
 import { Icon } from "../components/Icon";
@@ -79,7 +80,8 @@ export default function Leaderboard() {
         {data && (
           <>
             <section className="px-5">
-              <div className="card-gold flex items-center justify-between p-4">
+              <div className="card-gold relative flex items-center justify-between overflow-hidden p-4">
+                <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-gold/10 blur-2xl" />
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gold/15 text-gold">
                     <Icon name="trophy" className="h-5 w-5" />
@@ -97,6 +99,19 @@ export default function Leaderboard() {
                 </div>
               </div>
             </section>
+
+            {data.me.rank == null && data.rows.length > 0 && (
+              <div className="mx-5 mt-3 rounded-2xl border border-electric/15 bg-electric/5 p-3">
+                <div className="text-xs font-bold text-indigo-100">Пока вне списка лидеров</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-indigo-300/70">
+                  Продолжай выполнять предложения или приглашать друзей. В рейтинг попадают только подтверждённые результаты.
+                </p>
+                <Link to={type === "orders" ? "/catalog" : "/friends"} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-electric">
+                  {type === "orders" ? "Выбрать предложение" : "Пригласить друзей"}
+                  <Icon name="chevron-right" className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
 
             {data.rows.length === 0 ? (
               <div className="pt-3">

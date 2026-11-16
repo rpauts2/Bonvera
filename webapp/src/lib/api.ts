@@ -53,8 +53,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload.data as T;
 }
 
+
+async function requestBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  let res: Response;
+  try { res = await fetch(`${BASE}${path}`, { headers }); }
+  catch { throw new ApiError("network", "Нет соединения с сервером.", 0); }
+  if (!res.ok) {
+    let message = "Не удалось открыть файл."; let code = `http_${res.status}`;
+    try { const payload = await res.json(); message = payload?.err?.message ?? message; code = payload?.err?.code ?? code; } catch {}
+    if (res.status === 401) setSession(null);
+    throw new ApiError(code, message, res.status);
+  }
+  return res.blob();
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  blob: (path: string) => requestBlob(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>

@@ -252,3 +252,53 @@
 - Обновлены превью, контрольные суммы и реестры.
 - Локальная Chromium-галерея просмотрена после пересборки.
 - AWS не перезапускался, `main` не менялся.
+
+
+## Этап P — спринт 6: мониторинг, хранение доказательств, hardening прода (2026-11-16)
+
+### Синхронизация ветки
+
+- Локальная ветка fast-forward до `origin/c4a6996` (+30 коммитов владельца: РКО, повторяемый +100 ₽ за друга, 7 официальных SVG-карт, реестр изображений, фиксы возраста/условий).
+- Незавершённый WIP спринтов 5–6 сохранён в stash `bonvera-wip-sprint56-2026-11-16` (`0fb6c4c`) и выборочно восстановлен: мониторинг, retention, health, config, compose, env, бейдж Home. Регенерация абстрактных JPG и vitest-миграция оставлены в stash — конфликтуют с официальными SVG origin и новыми `.mjs`-тестами; vitest — отдельная задача при доступном npm-реестре.
+
+### Мониторинг живости (`bot/monitoring.py`)
+
+- `watchdog` проверяет БД (`SELECT 1`) и Telegram API (`get_me`) каждые `HEALTH_INTERVAL_MIN` (5 мин); алерт администраторам с cooldown `HEALTH_ALERT_COOLDOWN_MIN` (30 мин), чтобы не спамить при повторяющейся поломке.
+- `/health` отдаёт честный снимок `{ok, db, telegram, web, last_check, started_at, db_live}`; **503** при недоступной БД. Исправлен баг WIP: `watchdog(bot)` не получал `bot` в `add_job` → добавлен `args=[bot]`.
+- `docker-compose.yml`: healthcheck контейнера на `/health` (interval 30s, retries 3, start_period 40s).
+
+### Политика хранения доказательств (`bot/retention.py`)
+
+- Закрытые сделки (`paid/confirmed/rejected/expired`) — файлы удаляются через `PROOF_RETENTION_DAYS` (180 дней); незакрытые (`new/proof/hold`) — через `PROOF_OPEN_GRACE_DAYS` (365 дней).
+- Метаданные (label, hash, даты) и событие `evidence_purged` остаются в базе для аудита — удаляются только персональные байты файлов. Идемпотентно; путь проверяется regex (`delete_proof` отказывает вне хранилища). `PROOF_PURGE_ENABLED=false` отключает чистку. Ежедневная задача `evidence_purge` (jitter 1 ч).
+- Команда `/export <id>` — zip доказательств приходит администратору в Telegram (`BufferedInputFile`), публичных ссылок нет.
+
+### Production-hardening (`bot/tma_api.py`)
+
+- `headers_middleware` (внешний, покрывает и ранние 401/429, и static-ошибки): `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security: max-age=31536000; includeSubDomains` только за HTTPS-прокси (`X-Forwarded-Proto`).
+- `Cache-Control`: hashed `/app/assets/*` → `public, max-age=31536000, immutable`; `/app` (index.html) → `no-cache`; `/assets/offers/*` → `public, max-age=86400`; `/api/v1/*` → `private, no-store`. Явные заголовки доказательств (`private, no-store`) не переопределяются.
+- Редирект `/` → `/app` (302). `X-Frame-Options`/CSP `frame-ancestors` намеренно НЕ ставятся — Telegram Web открывает Mini App в iframe.
+- Rate-limit auth (20/мин) и API (240/мин) уже существовали — не дублировались.
+- Home: бейдж непрочитанных уведомлений 10px → 12px (читаемость).
+
+### Проверки
+
+- Backend: **114 passed** (`pytest tests/`) — включая `tests/test_tma_retention.py` (9: хранение, очистка, `/export`, health) и `tests/test_tma_headers.py` (7: заголовки, кэш, редирект, HSTS).
+- Frontend: **69 passed** (`npm test`, `.mjs`-харнесс origin, включая RKO/возраст/условия); `npm run build` (`tsc --noEmit && vite build`) успешно.
+- Живой стенд на новом билде: `/` → 302 `/app`; `/app` → `no-cache` + nosniff + Referrer-Policy; hashed `index-DOl7Y1Ok.js` → `immutable`; `t_bank.svg` → 200 `image/svg+xml` + cache 86400; HSTS за `X-Forwarded-Proto: https`.
+- Браузер (vite dev + стенд): вход по подписанному initData, Home и каталог рендерятся — **93 изображения, 7 официальных SVG-карт, вкладка РКО**, честные бейджи «Нет ссылки»/«Скоро». Скриншоты недоступны (viewport in-app браузера скрыт) — проверка структурная по DOM.
+
+### Аудит продакшена (read-only)
+
+- `https://3.107.48.59.sslip.io` жив: TLS валиден (Caddy/Let's Encrypt), gzip, `/health` 200, auth без initData → 400 `no_init_data`, без сессии → 401, `/postback` без секрета → 403.
+- Развёрнута ветка `feat/bonvera-mini-app-v2`, но сборка от **14 ноября**: официальные SVG (`t_bank.svg` → 404 на проде), РКО и повторяемый +100 ₽ ещё **НЕ в проде**.
+
+### Что требует действия владельца (мной не менялось)
+
+- Редеплой AWS: `git pull && docker compose up -d --build` (подтянет SVG, RKO, бонус, мониторинг, hardening).
+- Реальный домен вместо `sslip.io` + `WEBAPP_URL` (правка Caddyfile + env).
+- `BONVERA_CHANNEL_ID`/`BONVERA_CHANNEL_URL` (включит +20 ₽ и баннер канала).
+- Партнёрские ссылки для 87 офферов + письменное `approved` для 6 BK.
+- Официальные исходники изображений для остальных 86 офферов (права на использование).
+
+AWS production, `main` и credentials не изменялись. Работа только в `feat/bonvera-mini-app-v2`.

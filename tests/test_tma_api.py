@@ -15,7 +15,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from sqlalchemy import delete, select
 
 from bot.config import cfg
-from bot.db import App, Bank, BroadcastCampaign, DealEvent, Offer, OfferEvent, PayoutEvent, PayoutReq, Session, Tier, TmaSession, User, WalletEntry, init_db
+from bot.db import AdminAuditEvent, App, Bank, BroadcastCampaign, DealEvent, Offer, OfferEvent, PayoutEvent, PayoutReq, Session, Tier, TmaSession, User, WalletEntry, init_db
 from bot.tma_auth import create_session, session_user_id, token_hash
 from bot.tma_api import api_limiter, auth_limiter, channel_limiter
 from bot.web import make_web
@@ -366,11 +366,12 @@ def sign_login_widget(payload, token=None):
     values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
     return values
 
-def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypatch):
+def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypatch, tmp_path):
     from bot.config import cfg as app_cfg
     from bot.tma_api import _BOT_USERNAME
     monkeypatch.setattr(app_cfg, "admins", [919991])
     monkeypatch.setattr("bot.tma_api._BOT_USERNAME", None)
+    monkeypatch.setattr("bot.tma_files.PROOF_DIR", tmp_path / "proofs")
     redirect = loop.run_until_complete(client.get("/admin", allow_redirects=False))
     assert redirect.status == 302 and redirect.headers["Location"] == "/app/admin/login"
     status, body = get_json(loop, client, "/api/v1/admin/login-config")
@@ -404,7 +405,7 @@ def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypat
     assert any(row["id"] == 919991 for row in users["data"]["items"])
     status, finance = get_json(loop, client, "/api/v1/admin/section/finance", result["token"])
     assert status == 200 and "wallet_credits" in finance["data"]["items"]
-    for section in ("offers", "applications", "payouts", "broadcasts"):
+    for section in ("offers", "applications", "payouts", "broadcasts", "audit"):
         section_status, section_body = get_json(loop, client, f"/api/v1/admin/section/{section}", result["token"])
         assert section_status == 200 and section_body["data"]["section"] == section
     status, denied = get_json(loop, client, "/api/v1/admin/section/users")
@@ -416,19 +417,48 @@ def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypat
             bookmaker = Bank(slug="admin-test-bk", name="Test BK", category="bk")
             session.add_all([bank, bookmaker]); await session.flush()
             offer = Offer(bank_id=bank.id, code="admin-test-card", name="Test card", url="https://partner.example/", enabled=False, required_proofs=["Скриншот выполнения"])
-            bk_offer = Offer(bank_id=bookmaker.id, code="admin-test-bk", name="Test bookmaker", url="https://partner.example/bk", enabled=False, network_status="needs_approval")
+            bk_offer = Offer(bank_id=bookmaker.id, code="admin-test-bk", name="Test bookmaker", url="https://partner.example/bk", enabled=False, network_status="approved", approval="Written approval #test")
+            user = await session.get(User, 919991)
+            if user is None:
+                user = User(id=919991, username="admin_test_user", name="Admin test", balance=1000, accepted=True)
+                session.add(user)
+                await session.flush()
+            target_user = await session.get(User, 919993)
+            if target_user is None:
+                target_user = User(id=919993, username="ban_test_user", name="Ban test", balance=0, accepted=True)
+                session.add(target_user)
+                await session.flush()
             payout = PayoutReq(user_id=919991, amount=500, phone="", bank="Test", status="pending")
-            session.add_all([offer, bk_offer, payout]); await session.flush()
+            payout_reject = PayoutReq(user_id=919991, amount=300, phone="", bank="Test", status="pending")
+            session.add_all([offer, bk_offer, payout, payout_reject]); await session.flush()
             tier = Tier(offer_id=offer.id, payout=500, cashback=100)
             now = datetime.utcnow().isoformat()
-            confirm_app = App(user_id=919991, offer_id=offer.id, subid="web-admin-confirm", status="proof", proof_files=[{"proof_index":0,"storage":"test"}], verification={"proof_submitted_at":now}, offer_snapshot={"reward":100})
+            confirm_app = App(user_id=919991, offer_id=offer.id, subid="web-admin-confirm", status="proof", verification={"proof_submitted_at":now}, offer_snapshot={"reward":100})
             hold_app = App(user_id=919991, offer_id=offer.id, subid="web-admin-hold", status="proof")
             reject_app = App(user_id=919991, offer_id=offer.id, subid="web-admin-reject", status="proof")
-            session.add_all([tier, confirm_app, hold_app, reject_app]); await session.commit()
-            return offer.id, bk_offer.id, payout.id, bank.id, bookmaker.id, confirm_app.id, hold_app.id, reject_app.id
-    offer_id, bk_offer_id, payout_id, bank_id, bookmaker_id, confirm_app_id, hold_app_id, reject_app_id = loop.run_until_complete(seed_admin_controls())
+            session.add_all([tier, confirm_app, hold_app, reject_app]); await session.flush()
+            from bot.tma_files import store_proof
+            storage, _ctype = store_proof(confirm_app.id, "evidence.png", b"test-evidence-bytes")
+            confirm_app.proof_files = [{"proof_index":0,"storage":storage,"name":"evidence.png","label":"Скриншот выполнения","uploaded_at":now}]
+            await session.commit()
+            return offer.id, bk_offer.id, payout.id, payout_reject.id, bank.id, bookmaker.id, confirm_app.id, hold_app.id, reject_app.id
+    offer_id, bk_offer_id, payout_id, payout_reject_id, bank_id, bookmaker_id, confirm_app_id, hold_app_id, reject_app_id = loop.run_until_complete(seed_admin_controls())
+    status, apps_list = get_json(loop, client, "/api/v1/admin/section/applications", result["token"])
+    app_row = next(row for row in apps_list["data"]["items"] if row["id"] == confirm_app_id)
+    assert app_row["proof_files"][0]["name"] == "evidence.png"
+    proof_resp = loop.run_until_complete(client.get(f"/api/v1/admin/applications/{confirm_app_id}/proof/0", headers={"Authorization": f"Bearer {result['token']}"}))
+    assert proof_resp.status == 200 and loop.run_until_complete(proof_resp.read()) == b"test-evidence-bytes"
+
     resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{offer_id}/enabled", json={"enabled": True}, headers={"Authorization": f"Bearer {result['token']}"}))
     assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["enabled"] is True
+    resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{offer_id}", json={"name":"Updated card name","url":"https://partner.example/new","hold":14,"age_min":21,"age_max":65,"action":"Открыть счёт","rules":"Только новые клиенты","network_payout":750,"user_reward":125}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["name"] == "Updated card name"
+    assert loop.run_until_complete(resp.json())["data"]["user_reward"] == 125
+    resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{offer_id}", json={"age_min":80}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 400 and loop.run_until_complete(resp.json())["err"]["code"] == "bad_age_range"
+    resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{bk_offer_id}", json={"url":"https://partner.example/bk-new"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["approval_reset"] is True
+    assert loop.run_until_complete(resp.json())["data"]["enabled"] is False
     resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{bk_offer_id}/enabled", json={"enabled": True}, headers={"Authorization": f"Bearer {result['token']}"}))
     assert resp.status == 409 and loop.run_until_complete(resp.json())["err"]["code"] == "bookmaker_not_approved"
     resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_id}/action", json={"action":"take"}, headers={"Authorization": f"Bearer {result['token']}"}))
@@ -437,6 +467,10 @@ def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypat
     assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["status"] == "paid"
     resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_id}/action", json={"action":"paid"}, headers={"Authorization": f"Bearer {result['token']}"}))
     assert resp.status == 409
+    resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_reject_id}/action", json={"action":"reject","reason":"Реквизиты не прошли проверку"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["refunded"] == 300
+    resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_reject_id}/action", json={"action":"reject","reason":"Повтор"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 409
 
     resp = loop.run_until_complete(client.post(f"/api/v1/admin/applications/{confirm_app_id}/action", json={"action":"confirm"}, headers={"Authorization": f"Bearer {result['token']}"}))
     assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["status"] == "confirmed"
@@ -444,16 +478,30 @@ def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypat
     assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["status"] == "hold"
     resp = loop.run_until_complete(client.post(f"/api/v1/admin/applications/{reject_app_id}/action", json={"action":"reject","reason":"Недостаточно подтверждений"}, headers={"Authorization": f"Bearer {result['token']}"}))
     assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["status"] == "rejected"
+    resp = loop.run_until_complete(client.post("/api/v1/admin/users/919991/action", json={"action":"ban"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 409 and loop.run_until_complete(resp.json())["err"]["code"] == "admin_protected"
+    resp = loop.run_until_complete(client.post("/api/v1/admin/users/919993/action", json={"action":"ban"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["banned"] is True
+    resp = loop.run_until_complete(client.post("/api/v1/admin/users/919993/action", json={"action":"unban"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["banned"] is False
+    status, audit = get_json(loop, client, "/api/v1/admin/section/audit", result["token"])
+    assert status == 200 and any(item["action"] == "payout_rejected_refunded" for item in audit["data"]["items"])
+    assert any(item["action"] == "ban" for item in audit["data"]["items"])
+    assert any(item["action"] == "offer_updated" for item in audit["data"]["items"])
+    assert any(item["action"] == "broadcast_started" for item in audit["data"]["items"])
 
     async def cleanup_admin_controls():
         async with Session() as session:
             await session.execute(delete(BroadcastCampaign).where(BroadcastCampaign.id == campaign_id))
+            await session.execute(delete(AdminAuditEvent).where(AdminAuditEvent.actor_id == 919991))
+            await session.execute(delete(User).where(User.id == 919993))
             await session.execute(delete(DealEvent).where(DealEvent.app_id.in_([confirm_app_id, hold_app_id, reject_app_id])))
             await session.execute(delete(WalletEntry).where(WalletEntry.ref == f"app:{confirm_app_id}"))
             await session.execute(delete(App).where(App.id.in_([confirm_app_id, hold_app_id, reject_app_id])))
             await session.execute(delete(Tier).where(Tier.offer_id == offer_id))
-            await session.execute(delete(PayoutEvent).where(PayoutEvent.payout_id == payout_id))
-            await session.execute(delete(PayoutReq).where(PayoutReq.id == payout_id))
+            await session.execute(delete(PayoutEvent).where(PayoutEvent.payout_id.in_([payout_id, payout_reject_id])))
+            await session.execute(delete(WalletEntry).where(WalletEntry.ref == f"withdraw-refund:{payout_reject_id}"))
+            await session.execute(delete(PayoutReq).where(PayoutReq.id.in_([payout_id, payout_reject_id])))
             await session.execute(delete(OfferEvent).where(OfferEvent.offer_id.in_([offer_id, bk_offer_id])))
             await session.execute(delete(Offer).where(Offer.id.in_([offer_id, bk_offer_id])))
             await session.execute(delete(Bank).where(Bank.id.in_([bank_id, bookmaker_id])))

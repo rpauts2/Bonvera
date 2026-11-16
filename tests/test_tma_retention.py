@@ -290,3 +290,45 @@ def test_payout_csv_export_is_admin_only_and_memory_only(loop, client, ret_offer
     stranger = _ExportCallback(123456)
     loop.run_until_complete(export_csv(stranger))
     assert not stranger.documents
+
+
+def test_export_command_includes_legacy_telegram_proofs(loop, client, ret_offers, proof_dir, monkeypatch):
+    from bot.admin import export_evidence
+
+    monkeypatch.setattr(cfg, "admins", [999003])
+
+    async def seed():
+        async with Session() as s:
+            offer = (await s.execute(select(Offer).where(Offer.code == "ret_card"))).scalar_one()
+            app = App(
+                user_id=880003, offer_id=offer.id, status="proof",
+                subid="ret-telegram-proof", proof_files=[{
+                    "file_id": "telegram-file-id", "kind": "document",
+                    "name": "statement.pdf", "label": "Выписка",
+                }],
+            )
+            s.add(app)
+            await s.commit()
+            return app.id
+
+    app_id = loop.run_until_complete(seed())
+
+    class TelegramStub:
+        async def get_file(self, file_id):
+            assert file_id == "telegram-file-id"
+            return type("F", (), {"file_path": "documents/statement.pdf"})()
+
+        async def download_file(self, file_path, destination):
+            assert file_path == "documents/statement.pdf"
+            destination.write(b"%PDF-1.4 telegram proof")
+
+    admin = _ExportMsg(999003, f"/export {app_id}")
+    loop.run_until_complete(export_evidence(admin, TelegramStub()))
+    assert len(admin.documents) == 1
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(admin.documents[0][0].data)) as archive:
+        names = archive.namelist()
+        assert len(names) == 1
+        assert names[0].endswith(".pdf")
+        assert archive.read(names[0]).startswith(b"%PDF-1.4")

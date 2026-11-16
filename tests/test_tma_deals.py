@@ -338,6 +338,12 @@ def test_wallet_withdrawal_cancel_cycle(loop, client, offers):
     pid = body["data"]["id"]
     assert body["data"]["status"] == "pending" and body["data"]["can_cancel"] is True
 
+    # A client retry after a lost HTTP response must return the existing active
+    # request rather than reserve the same money twice or notify admins again.
+    status, retry = post_json(loop, client, "/api/v1/withdrawals", token, {"amount": 500, "bank": "Т-Банк", "phone": "+79991234567"})
+    assert status == 200
+    assert retry["data"]["id"] == pid
+
     status, body = get_json(loop, client, "/api/v1/wallet", token)
     assert body["data"]["summary"]["available"] == 10
     assert body["data"]["summary"]["reserved"] == 500

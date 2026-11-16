@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from pathlib import Path
 import csv
+import io
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from sqlalchemy import select, func, case
 from bot.config import cfg
 from bot.db import *
@@ -644,15 +644,18 @@ async def verify_offer_do(m: Message, state: FSMContext):
 @r.callback_query(F.data == "adm:csv")
 async def export_csv(c: CallbackQuery):
     if not adm(c.from_user.id): return
-    path = Path("data"); path.mkdir(exist_ok=True)
-    target = path / f"payments-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+    # The export contains decrypted payout phone numbers. Keep it in memory only:
+    # never leave a plaintext payment registry on the server filesystem.
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow(["ID", "Telegram ID", "Сумма", "Статус", "Банк СБП", "Создана", "Обновлена", "Оплачена", "Телефон СБП", "Комментарий"])
     async with Session() as s:
         rows = (await s.execute(select(PayoutReq).order_by(PayoutReq.id.desc()))).scalars().all()
-        with target.open("w", newline="", encoding="utf-8-sig") as f:
-            w = csv.writer(f, delimiter=";"); w.writerow(["ID", "Telegram ID", "Сумма", "Статус", "Банк СБП", "Создана", "Обновлена", "Оплачена", "Телефон СБП", "Комментарий"])
-            for p in rows:
-                w.writerow([p.id, p.user_id, p.amount, p.status, p.bank, p.created, p.updated_at, p.paid_at, phone_decrypt(p.phone), p.admin_note])
-    await c.message.answer_document(FSInputFile(target), caption="Реестр выплат CSV. Храните файл безопасно: внутри есть платёжные данные.")
+        for p in rows:
+            writer.writerow([p.id, p.user_id, p.amount, p.status, p.bank, p.created, p.updated_at, p.paid_at, phone_decrypt(p.phone), p.admin_note])
+    payload = buffer.getvalue().encode("utf-8-sig")
+    document = BufferedInputFile(payload, filename=f"payments-{datetime.utcnow():%Y%m%d-%H%M%S}.csv")
+    await c.message.answer_document(document, caption="Реестр выплат CSV. Храните файл безопасно: внутри есть платёжные данные.")
     await c.answer("Экспорт готов")
 
 @r.callback_query(F.data == "adm:s")

@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, FSInputFile
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from bot.config import cfg
 from bot.db import *
 from bot.ui import ik
@@ -46,6 +46,30 @@ adm = lambda uid: uid in cfg.admins
 async def offer_audit(s, offer_id, actor_id, event, details):
     """Store human-readable offer-change history without copying affiliate URL secrets."""
     s.add(OfferEvent(offer_id=offer_id, actor_id=actor_id, event=event, details=(details or "")[:1500]))
+
+@r.message(Command("export"))
+async def export_evidence(m: Message, bot: Bot | None = None):
+    """Send a private evidence ZIP to an authorized administrator only."""
+    if not adm(m.from_user.id):
+        return
+    parts = (m.text or "").split(maxsplit=1)
+    if len(parts) != 2 or not parts[1].strip().isdigit():
+        return await m.answer("Использование: /export <id сделки>")
+    aid = int(parts[1].strip())
+    async with Session() as s:
+        app = await s.get(App, aid)
+        if app is None:
+            return await m.answer(f"Сделка #{aid} не найдена.")
+        from bot.tma_files import build_evidence_zip
+        archive = build_evidence_zip(app.proof_files or [])
+    if not archive:
+        return await m.answer(f"У сделки #{aid} нет доступных файлов доказательств.")
+    from aiogram.types import BufferedInputFile
+    await m.answer_document(
+        BufferedInputFile(archive, filename=f"evidence-{aid}.zip"),
+        caption=f"Доказательства по сделке #{aid}. Храните архив безопасно: он может содержать персональные данные.",
+    )
+
 
 @r.message(Command("admin"))
 async def panel(m: Message):
@@ -646,11 +670,32 @@ async def stats(c: CallbackQuery):
         wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar() or 0
         pending_wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0
         hold_sum = (await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(App.status == HOLD))).scalar() or 0
+        offer_rows = (await s.execute(
+            select(
+                Offer.name,
+                func.count(App.id),
+                func.sum(case((App.status.in_([CONFIRMED, PAID]), 1), else_=0)),
+                func.coalesce(func.sum(case((App.status.in_([CONFIRMED, PAID]), App.payout), else_=0)), 0),
+                func.coalesce(func.sum(case((App.status.in_([CONFIRMED, PAID]), App.cashback), else_=0)), 0),
+            )
+            .join(App, App.offer_id == Offer.id)
+            .group_by(Offer.id, Offer.name)
+            .order_by(func.count(App.id).desc(), Offer.name)
+            .limit(8)
+        )).all()
     status_ru = {NEW:"оформляются", PROOF:"на проверке", HOLD:"в холде", CONFIRMED:"подтверждены", PAID:"выплачены", REJECTED:"отклонены", EXPIRED:"истекли"}
     by_ru = ", ".join(f"{status_ru.get(k,k)}: {v}" for k,v in by.items()) or "нет заявок"
-    margin_text = (f"Предварительная разница по postback: {inc - out - refs} ₽\n"
-                   "(до расходов; postback не подтверждает фактическое поступление денег)."
-                   if inc > 0 else "Предварительную маржу пока нельзя оценить: нет комиссий сети в postback.")
+    margin_text = (f"Предварительная разница по учтённой комиссии: {inc - out - refs} ₽\n"
+                   "(до расходов; учтённая комиссия не равна подтверждённому поступлению денег)."
+                   if inc > 0 else "Предварительную маржу пока нельзя оценить: нет учтённой комиссии сети.")
+    offer_lines = []
+    for name, total, completed, network_sum, user_sum in offer_rows:
+        short_name = (name or "Без названия").replace("\n", " ")[:36]
+        offer_lines.append(
+            f"• {short_name}: {total} заяв. · {completed or 0} подтв. · "
+            f"сеть {network_sum} ₽ · пользователям {user_sum} ₽"
+        )
+    offer_stats = "\n".join(offer_lines) if offer_lines else "Пока нет заявок по офферам."
     await c.message.answer(
         f"📊 <b>Показатели BONVERA</b>\n"
         f"Пользователей: {u}\n"
@@ -663,7 +708,8 @@ async def stats(c: CallbackQuery):
         f"Сумма в холде: {hold_sum} ₽\n"
         f"Ожидают обработки на вывод: {pending_wd} ₽\n"
         f"Фактически отмечено выплаченным: {wd} ₽\n"
-        f"{margin_text}"
+        f"{margin_text}\n\n"
+        f"🏷 <b>Офферы по числу заявок (топ-8)</b>\n{offer_stats}"
     )
     await c.answer()
 

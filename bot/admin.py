@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
+import asyncio
 import csv
 import io
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from sqlalchemy import select, func, case
 from bot.config import cfg
 from bot.db import *
@@ -17,7 +18,7 @@ from bot.offer_rules import bk_approval_must_be_reset
 
 r = Router()
 class A(StatesGroup):
-    rej = State(); needinfo = State(); bc = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State()
+    rej = State(); needinfo = State(); bc = State(); bc_audience = State(); bc_confirm = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State()
 
 
 def _proof_input(item):
@@ -741,21 +742,131 @@ async def stats(c: CallbackQuery):
     )
     await c.answer()
 
+def broadcast_keyboard():
+    """Every campaign copy gets a direct Mini App launch button."""
+    if not cfg.webapp_url:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="📱 Перейти в Bonvera", web_app=WebAppInfo(url=cfg.webapp_url))
+    ]])
+
+
+def broadcast_audience_query(audience: str):
+    query = select(User.id).where(User.banned == False)
+    if audience == "accepted":
+        query = query.where(User.accepted == True)
+    return query.order_by(User.id)
+
+
 @r.callback_query(F.data == "adm:bc")
 async def bc(c: CallbackQuery, state: FSMContext):
     if not adm(c.from_user.id): return
-    await state.set_state(A.bc); await c.message.answer("Текст рассылки (HTML):"); await c.answer()
+    if not cfg.webapp_url:
+        await c.answer("Сначала настрой WEBAPP_URL — без него нельзя добавить кнопку перехода.", show_alert=True)
+        return
+    await state.set_state(A.bc)
+    await c.message.answer(
+        "📣 <b>Новая рассылка</b>\n\n"
+        "Отправь следующим сообщением готовую публикацию: текст, фото с подписью, видео или документ.\n"
+        "Форматирование и вложения сохранятся. Перед отправкой будет предпросмотр и подтверждение."
+    )
+    await c.answer()
+
+
 @r.message(A.bc)
 async def bc_do(m: Message, state: FSMContext, bot: Bot):
     if not adm(m.from_user.id): return
-    await state.clear()
+    if not any((m.text, m.caption, m.photo, m.video, m.document, m.animation, m.audio, m.voice, m.video_note)):
+        return await m.answer("Не удалось распознать публикацию. Отправь текст или медиафайл с подписью.")
+    await state.update_data(source_chat_id=m.chat.id, source_message_id=m.message_id)
+    await state.set_state(A.bc_audience)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Все пользователи", callback_data="bc:audience:all")],
+        [InlineKeyboardButton(text="Приняли правила 18+", callback_data="bc:audience:accepted")],
+        [InlineKeyboardButton(text="Отмена", callback_data="bc:cancel")],
+    ])
+    try:
+        await bot.copy_message(chat_id=m.chat.id, from_chat_id=m.chat.id, message_id=m.message_id,
+                                reply_markup=broadcast_keyboard())
+    except Exception as exc:
+        await state.clear()
+        return await m.answer(f"Предпросмотр не удалось скопировать ({type(exc).__name__}). Рассылка не запущена.")
+    await m.answer("Выбери аудиторию для публикации:", reply_markup=keyboard)
+
+
+@r.callback_query(F.data.startswith("bc:audience:"))
+async def bc_audience(c: CallbackQuery, state: FSMContext):
+    if not adm(c.from_user.id): return
+    if await state.get_state() != A.bc_audience.state:
+        return await c.answer("Сессия рассылки устарела. Начни заново через /admin.", show_alert=True)
+    audience = c.data.rsplit(":", 1)[-1]
+    if audience not in {"all", "accepted"}:
+        return await c.answer("Неизвестная аудитория.", show_alert=True)
+    await state.update_data(audience=audience)
+    await state.set_state(A.bc_confirm)
     async with Session() as s:
-        ids = (await s.execute(select(User.id).where(User.banned == False))).scalars().all()
-    ok = 0
+        conditions = [User.banned == False]
+        if audience == "accepted":
+            conditions.append(User.accepted == True)
+        count = (await s.execute(select(func.count(User.id)).where(*conditions))).scalar_one()
+    label = "принявшим правила 18+" if audience == "accepted" else "всем незаблокированным пользователям"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"🚀 Отправить ({count})", callback_data="bc:send")],
+        [InlineKeyboardButton(text="Отмена", callback_data="bc:cancel")],
+    ])
+    await c.message.answer(f"Получатели: <b>{label}</b>.\nКоличество: <b>{count}</b>.\nПодтвердить рассылку?", reply_markup=keyboard)
+    await c.answer()
+
+
+@r.callback_query(F.data == "bc:send")
+async def bc_send(c: CallbackQuery, state: FSMContext, bot: Bot):
+    if not adm(c.from_user.id): return
+    if await state.get_state() != A.bc_confirm.state:
+        return await c.answer("Нет активной рассылки. Начни заново через /admin.", show_alert=True)
+    data = await state.get_data()
+    if not cfg.webapp_url:
+        await state.clear()
+        return await c.answer("WEBAPP_URL не настроен. Рассылка отменена.", show_alert=True)
+    async with Session() as s:
+        ids = (await s.execute(broadcast_audience_query(data.get("audience", "all")))).scalars().all()
+        campaign = BroadcastCampaign(
+            admin_id=c.from_user.id,
+            source_chat_id=int(data["source_chat_id"]),
+            source_message_id=int(data["source_message_id"]),
+            audience=data.get("audience", "all"),
+            recipient_count=len(ids),
+        )
+        s.add(campaign)
+        await s.commit()
+        campaign_id = campaign.id
+    await state.clear()
+    sent = failed = 0
+    status = await c.message.answer(f"Рассылка запущена: 0/{len(ids)}")
     for uid in ids:
-        try: await bot.send_message(uid, m.html_text); ok += 1
-        except Exception: pass
-    await m.answer(f"Отправлено {ok}/{len(ids)}")
+        try:
+            await bot.copy_message(chat_id=uid, from_chat_id=int(data["source_chat_id"]),
+                                   message_id=int(data["source_message_id"]),
+                                   reply_markup=broadcast_keyboard())
+            sent += 1
+        except Exception:
+            failed += 1
+        await asyncio.sleep(0.05)
+    async with Session() as s:
+        campaign = await s.get(BroadcastCampaign, campaign_id)
+        if campaign:
+            campaign.sent_count = sent
+            campaign.failed_count = failed
+            await s.commit()
+    await status.edit_text(f"✅ <b>Рассылка завершена</b>\nУспешно: {sent}\nНе доставлено: {failed}\nВсего: {len(ids)}")
+    await c.answer("Готово")
+
+
+@r.callback_query(F.data == "bc:cancel")
+async def bc_cancel(c: CallbackQuery, state: FSMContext):
+    if not adm(c.from_user.id): return
+    await state.clear()
+    await c.message.answer("Рассылка отменена. Ничего не отправлено.")
+    await c.answer()
 
 @r.message(Command("reply"))
 async def reply(m: Message, bot: Bot):

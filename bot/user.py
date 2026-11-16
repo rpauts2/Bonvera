@@ -11,7 +11,9 @@ import uuid
 from PIL import Image
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from bot.config import cfg
+from bot import services
 from bot.db import *
 from bot.ui import *
 from bot.logic import *
@@ -311,21 +313,9 @@ async def proof_got(m: Message, state: FSMContext, bot: Bot):
         o = await s.get(Offer, a.offer_id)
         required, received, missing = proof_progress(a, o)
         if ph:
-            recent = (await s.execute(select(App).order_by(App.id.desc()).limit(500))).scalars().all()
-            candidate = imagehash.hex_to_hash(ph)
-            for old in recent:
-                hashes = [x.get("hash") for x in (old.proof_files or []) if isinstance(x, dict) and x.get("hash")]
-                if old.proof_hash: hashes.append(old.proof_hash)
-                for old_hash in set(hashes):
-                    try:
-                        distance = candidate - imagehash.hex_to_hash(old_hash)
-                        if distance == 0:
-                            return await m.answer("Это точная копия скриншота, который уже приложен к другой сделке или ранее к этой сделке. Нужен оригинальный файл подтверждения именно для текущего пункта.")
-                        if distance <= 3:
-                            duplicate_suspected = True
-                            duplicate_matches += 1
-                    except Exception:
-                        pass
+            exact, duplicate_suspected, duplicate_matches = await services.phash_duplicates(s, ph, a.offer_id)
+            if exact:
+                return await m.answer("Этот документ уже загружали на данный оффер с другого аккаунта. Нужен оригинальный документ именно для вашей заявки.")
         current_index = missing[0] if missing else None
         label = required[current_index] if current_index is not None else "Дополнительное подтверждение"
         old_status = a.status
@@ -336,6 +326,13 @@ async def proof_got(m: Message, state: FSMContext, bot: Bot):
             "duplicate_suspected": duplicate_suspected, "duplicate_matches": duplicate_matches,
             "uploaded_at": datetime.utcnow().isoformat()
         }
+        if ph:
+            services.add_proof_fingerprint(s, offer_id=a.offer_id, app_id=a.id, user_id=m.from_user.id, ph=ph)
+            try:
+                await s.flush()
+            except IntegrityError:
+                await s.rollback()
+                return await m.answer("Этот документ уже загружали на данный оффер с другого аккаунта. Нужен оригинальный документ именно для вашей заявки.")
         a.proof = fid; a.proof_hash = ph
         a.proof_files = list(a.proof_files or []) + [proof_item]
         if a.status == NEW:

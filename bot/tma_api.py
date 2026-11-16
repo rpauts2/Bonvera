@@ -18,10 +18,10 @@ from sqlalchemy.exc import IntegrityError
 from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
-from bot.db import App, Bank, DealEvent, DealMessage, Offer, PayoutEvent, PayoutReq, Session, TmaSession, User
+from bot.db import App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, User, WalletEntry
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
-from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data
+from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data, verify_telegram_login
 from bot.tma_files import (
     IMAGE_EXT, MAX_FILES_PER_UPLOAD, FileError, resolve_proof, safe_ext, store_proof,
 )
@@ -120,9 +120,11 @@ async def bot_username(request) -> str | None:
 async def api_middleware(request, handler):
     if not request.path.startswith("/api/v1"):
         return await handler(request)
-    if request.path == "/api/v1/auth/telegram":
+    if request.path in ("/api/v1/auth/telegram", "/api/v1/auth/telegram-widget"):
         if not auth_limiter.allow(request.remote or "unknown"):
             return err("rate_limited", "Слишком много попыток входа. Подожди минуту.", 429)
+        return await handler(request)
+    if request.path == "/api/v1/admin/login-config":
         return await handler(request)
     auth = request.headers.get("Authorization", "")
     token = auth[7:] if auth.startswith("Bearer ") else ""
@@ -171,6 +173,43 @@ async def auth_telegram(request):
                 u.name = tg_user["first_name"]; changed = True
             if changed:
                 await s.commit()
+        token, expires = await create_session(s, uid)
+        profile = await services.user_profile(s, u)
+    return ok({"token": token, "expires_at": expires.isoformat(), "user": profile})
+
+
+async def admin_login_config(request):
+    username = await bot_username(request)
+    if not username:
+        return err("bot_unavailable", "Не удалось определить имя Telegram-бота.", 503)
+    return ok({"bot_username": username})
+
+
+async def auth_telegram_widget(request):
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    try:
+        tg_user = verify_telegram_login(body, cfg.token)
+    except InitDataError as e:
+        return err(e.code, str(e), 401)
+    uid = tg_user["id"]
+    if uid not in cfg.admins:
+        return err("forbidden", "Этот Telegram-аккаунт не входит в список администраторов.", 403)
+    async with Session() as s:
+        u = await s.get(User, uid)
+        if u is None:
+            u = User(id=uid, username=tg_user.get("username"), name=tg_user.get("first_name") or "Администратор")
+            s.add(u)
+            await s.flush()
+        elif u.banned:
+            return err("banned", "Доступ ограничен.", 403)
+        else:
+            if tg_user.get("username"):
+                u.username = tg_user["username"]
+            if tg_user.get("first_name"):
+                u.name = tg_user["first_name"]
         token, expires = await create_session(s, uid)
         profile = await services.user_profile(s, u)
     return ok({"token": token, "expires_at": expires.isoformat(), "user": profile})
@@ -744,6 +783,128 @@ async def admin_overview(request):
         payout_rows = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "status": p.status, "created": p.created.isoformat() if p.created else None} for p in recent_payouts]
     return ok({"users_total": users_total, "users_active": users_active, "offers_total": offers_total, "offers_enabled": offers_enabled, "apps_by_status": apps_by_status, "pending_payouts": pending_payouts, "pending_payouts_sum": pending_sum, "recent_apps": app_rows, "recent_payouts": payout_rows})
 
+
+async def admin_section(request):
+    """Read-only datasets for the standalone admin workspace."""
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа к панели администратора.", 403)
+    from sqlalchemy import func, or_
+    section = request.match_info["section"]
+    query = (request.query.get("q", "") or "").strip()[:80]
+    async with Session() as s:
+        if section == "users":
+            stmt = select(User).order_by(User.created.desc()).limit(100)
+            if query:
+                filters = [User.username.ilike(f"%{query}%"), User.name.ilike(f"%{query}%")]
+                if query.isdigit():
+                    filters.append(User.id == int(query))
+                stmt = select(User).where(or_(*filters)).order_by(User.created.desc()).limit(100)
+            rows = (await s.execute(stmt)).scalars().all()
+            data = [{"id": u.id, "name": u.name or "", "username": u.username or "", "balance": u.balance, "banned": u.banned, "created": u.created.isoformat() if u.created else None, "referrer_id": u.referrer_id} for u in rows]
+        elif section == "offers":
+            rows = (await s.execute(select(Offer, Bank).join(Bank, Offer.bank_id == Bank.id).order_by(Offer.sort, Offer.id.desc()).limit(200))).all()
+            data = [{"id": o.id, "name": o.name, "code": o.code, "bank": b.name, "category": b.category, "enabled": o.enabled, "network_status": o.network_status, "url": o.url, "approval": o.approval, "hold": o.hold, "age_min": o.age_min, "age_max": o.age_max} for o, b in rows]
+        elif section == "applications":
+            rows = (await s.execute(select(App).order_by(App.created.desc()).limit(200))).scalars().all()
+            data = [{"id": a.id, "user_id": a.user_id, "offer": (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}"), "status": a.status, "payout": a.payout, "cashback": a.cashback, "created": a.created.isoformat() if a.created else None, "reason": a.reason} for a in rows]
+        elif section == "payouts":
+            rows = (await s.execute(select(PayoutReq).order_by(PayoutReq.created.desc()).limit(200))).scalars().all()
+            data = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "bank": p.bank, "status": p.status, "admin_note": p.admin_note, "created": p.created.isoformat() if p.created else None, "paid_at": p.paid_at.isoformat() if p.paid_at else None} for p in rows]
+        elif section == "broadcasts":
+            rows = (await s.execute(select(BroadcastCampaign).order_by(BroadcastCampaign.created.desc()).limit(100))).scalars().all()
+            data = [{"id": c.id, "admin_id": c.admin_id, "audience": c.audience, "recipient_count": c.recipient_count, "sent_count": c.sent_count, "failed_count": c.failed_count, "created": c.created.isoformat() if c.created else None} for c in rows]
+        elif section == "finance":
+            credits = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
+            debits = int((await s.execute(select(func.coalesce(func.sum(-WalletEntry.amount), 0)).where(WalletEntry.amount < 0))).scalar() or 0)
+            paid = int((await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar() or 0)
+            network = int((await s.execute(select(func.coalesce(func.sum(PbLog.payout), 0)))).scalar() or 0)
+            data = {"wallet_credits": credits, "wallet_debits": debits, "paid_to_users": paid, "network_postback_total": network, "note": "Postback — учётная сумма сети, не подтверждение фактического поступления денег."}
+        else:
+            return err("not_found", "Раздел не найден.", 404)
+    return ok({"section": section, "items": data})
+
+
+async def admin_offer_enabled(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    enabled = body.get("enabled") if isinstance(body, dict) else None
+    if not isinstance(enabled, bool):
+        return err("bad_enabled", "Ожидается логическое значение enabled.")
+    try:
+        offer_id = int(request.match_info["id"])
+    except (TypeError, ValueError):
+        return err("bad_id", "Некорректный ID оффера.")
+    async with Session() as s:
+        offer = (await s.execute(select(Offer).where(Offer.id == offer_id).with_for_update())).scalar_one_or_none()
+        if offer is None:
+            return err("not_found", "Оффер не найден.", 404)
+        bank = await s.get(Bank, offer.bank_id)
+        if enabled:
+            if not offer.url or not offer.url.startswith(("https://", "http://")):
+                return err("missing_partner_url", "Нельзя включить оффер без рабочей партнёрской ссылки.", 409)
+            if bank and bank.category == "bk" and (offer.network_status != "approved" or not offer.approval.strip()):
+                return err("bookmaker_not_approved", "Букмекерский оффер нельзя включить без зафиксированного согласования партнёра.", 409)
+        if offer.enabled == enabled:
+            return ok({"id": offer.id, "enabled": offer.enabled, "unchanged": True})
+        offer.enabled = enabled
+        s.add(OfferEvent(offer_id=offer.id, actor_id=request["uid"], event="enabled" if enabled else "disabled", details="Изменено через веб-админку"))
+        await s.commit()
+        return ok({"id": offer.id, "enabled": offer.enabled})
+
+
+async def admin_payout_action(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    action = body.get("action") if isinstance(body, dict) else None
+    if action not in {"take", "paid"}:
+        return err("bad_action", "Допустимые действия: take, paid.")
+    try:
+        payout_id = int(request.match_info["id"])
+    except (TypeError, ValueError):
+        return err("bad_id", "Некорректный ID выплаты.")
+    referral = None
+    async with Session() as s:
+        payout = (await s.execute(select(PayoutReq).where(PayoutReq.id == payout_id).with_for_update())).scalar_one_or_none()
+        if payout is None:
+            return err("not_found", "Запрос на вывод не найден.", 404)
+        old = payout.status
+        if action == "take":
+            if old != "pending":
+                return err("invalid_status", "Запрос уже взят в работу или закрыт.", 409)
+            payout.status = "processing"
+            payout.processed_by = request["uid"]
+            payout.updated_at = datetime.utcnow()
+            s.add(PayoutEvent(payout_id=payout.id, actor_id=request["uid"], event="taken", from_status=old, to_status="processing", comment="Администратор взял запрос в работу через веб-панель"))
+            await s.commit()
+            await notify(request.app[BOT_KEY], payout.user_id, f"🔄 Запрос на вывод #{payout.id} взят в обработку. Сумма {payout.amount} ₽ зарезервирована.")
+            return ok({"id": payout.id, "status": payout.status})
+        if old not in ("processing", "review_required"):
+            return err("invalid_status", "Сначала возьми запрос в работу. Уже закрытый запрос нельзя отметить выплаченным.", 409)
+        payout.status = "paid"
+        payout.paid_at = datetime.utcnow()
+        payout.updated_at = datetime.utcnow()
+        payout.processed_by = request["uid"]
+        comment = "Фактический банковский перевод подтверждён администратором через веб-панель"
+        s.add(PayoutEvent(payout_id=payout.id, actor_id=request["uid"], event="paid", from_status=old, to_status="paid", comment=comment))
+        from bot.bonuses import referral_payout_bonus
+        referral = await referral_payout_bonus(s, payout)
+        user_id, amount = payout.user_id, payout.amount
+        await s.commit()
+    await notify(request.app[BOT_KEY], user_id, f"💸 <b>Перевод {amount} ₽ выполнен</b> по заявке на вывод #{payout_id}.")
+    if referral:
+        referrer_id, bonus_amount = referral
+        await notify(request.app[BOT_KEY], referrer_id, f"🎁 <b>+{bonus_amount} ₽ за друга!</b> Твой друг получил первую выплату — бонус зачислен в кошелёк.")
+    return ok({"id": payout_id, "status": "paid"})
+
+
 def setup_tma(app: web.Application, bot):
     app[BOT_KEY] = bot
     app.middlewares.insert(0, headers_middleware)
@@ -751,11 +912,19 @@ def setup_tma(app: web.Application, bot):
     r = app.router
     async def root_redirect(_request):
         return web.Response(status=302, headers={"Location": "/app"})
+    async def admin_root_redirect(_request):
+        return web.Response(status=302, headers={"Location": "/app/admin/login"})
     r.add_get("/", root_redirect)
+    r.add_get("/admin", admin_root_redirect)
     r.add_post("/api/v1/auth/telegram", auth_telegram)
+    r.add_get("/api/v1/admin/login-config", admin_login_config)
+    r.add_post("/api/v1/auth/telegram-widget", auth_telegram_widget)
     r.add_post("/api/v1/auth/logout", auth_logout)
     r.add_get("/api/v1/me", me)
     r.add_get("/api/v1/admin/overview", admin_overview)
+    r.add_get("/api/v1/admin/section/{section}", admin_section)
+    r.add_put("/api/v1/admin/offers/{id}/enabled", admin_offer_enabled)
+    r.add_post("/api/v1/admin/payouts/{id}/action", admin_payout_action)
     r.add_post("/api/v1/me/accept", me_accept)
     r.add_put("/api/v1/me/age", me_age)
     r.add_put("/api/v1/me/sbp", me_sbp)

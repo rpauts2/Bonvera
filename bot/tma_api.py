@@ -614,16 +614,17 @@ async def withdrawals_create(request):
         return err("bad_phone", "Укажи корректный телефон СБП.")
     uid = request["uid"]
     async with Session() as s:
-        p, code, msg = await services.create_withdrawal(s, uid, amount, bank, phone)
+        p, code, msg, created = await services.create_withdrawal(s, uid, amount, bank, phone)
         if p is None:
             return err(code, msg, WITHDRAW_ERROR_STATUS.get(code, 400))
         events = (await s.execute(select(PayoutEvent).where(PayoutEvent.payout_id == p.id).order_by(PayoutEvent.id))).scalars().all()
         view = services.withdrawal_view(p, list(events))
         bot = request.app[BOT_KEY]
-        for ad in cfg.admins:
-            await notify(bot, ad, f"💸 <b>Новый запрос на вывод #{p.id} (Mini App)</b>\nСумма: {p.amount} ₽\nБанк: {p.bank}\n"
-                                  f"Телефон СБП: {phone_decrypt(p.phone)}\nПользователь: {uid}")
-    return ok(view, status=201)
+        if created:
+            for ad in cfg.admins:
+                await notify(bot, ad, f"💸 <b>Новый запрос на вывод #{p.id} (Mini App)</b>\nСумма: {p.amount} ₽\nБанк: {p.bank}\n"
+                                      f"Телефон СБП: {phone_decrypt(p.phone)}\nПользователь: {uid}")
+    return ok(view, status=201 if created else 200)
 
 
 async def withdrawals_cancel(request):

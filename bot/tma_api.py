@@ -4,10 +4,12 @@ All money/ownership decisions happen server-side; the client only renders.
 Bearer sessions come from bot.tma_auth after HMAC-verified initData.
 """
 import time
+import asyncio
+import logging
 import re
 import html
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -18,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
-from bot.db import App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, User, WalletEntry
+from bot.db import App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, Tier, User, WalletEntry
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data, verify_telegram_login
@@ -99,6 +101,7 @@ class RateLimiter:
 auth_limiter = RateLimiter(20)
 api_limiter = RateLimiter(240)
 channel_limiter = RateLimiter(10)
+BROADCAST_TASKS: dict[int, asyncio.Task] = {}
 
 BOT_KEY = web.AppKey("bot")
 _BOT_USERNAME: str | None = None
@@ -297,7 +300,7 @@ async def notifications(request):
 
 
 async def notifications_read(request):
-    from datetime import datetime
+    from datetime import datetime, timedelta
     async with Session() as s:
         u = await s.get(User, request["uid"])
         u.notif_read_at = datetime.utcnow()
@@ -812,7 +815,7 @@ async def admin_section(request):
             data = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "bank": p.bank, "status": p.status, "admin_note": p.admin_note, "created": p.created.isoformat() if p.created else None, "paid_at": p.paid_at.isoformat() if p.paid_at else None} for p in rows]
         elif section == "broadcasts":
             rows = (await s.execute(select(BroadcastCampaign).order_by(BroadcastCampaign.created.desc()).limit(100))).scalars().all()
-            data = [{"id": c.id, "admin_id": c.admin_id, "audience": c.audience, "recipient_count": c.recipient_count, "sent_count": c.sent_count, "failed_count": c.failed_count, "created": c.created.isoformat() if c.created else None} for c in rows]
+            data = [{"id": c.id, "admin_id": c.admin_id, "audience": c.audience, "recipient_count": c.recipient_count, "sent_count": c.sent_count, "failed_count": c.failed_count, "status": "sending" if c.id in BROADCAST_TASKS else ("completed" if c.sent_count + c.failed_count >= c.recipient_count else "interrupted"), "created": c.created.isoformat() if c.created else None} for c in rows]
         elif section == "finance":
             credits = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
             debits = int((await s.execute(select(func.coalesce(func.sum(-WalletEntry.amount), 0)).where(WalletEntry.amount < 0))).scalar() or 0)
@@ -822,6 +825,170 @@ async def admin_section(request):
         else:
             return err("not_found", "Раздел не найден.", 404)
     return ok({"section": section, "items": data})
+
+
+async def admin_app_action(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    action = body.get("action") if isinstance(body, dict) else None
+    if action not in {"confirm", "hold", "reject"}:
+        return err("bad_action", "Допустимые действия: confirm, hold, reject.")
+    try:
+        app_id = int(request.match_info["id"])
+    except (TypeError, ValueError):
+        return err("bad_id", "Некорректный ID заявки.")
+    bot = request.app[BOT_KEY]
+    async with Session() as s:
+        deal = (await s.execute(select(App).where(App.id == app_id).with_for_update())).scalar_one_or_none()
+        if deal is None:
+            return err("not_found", "Заявка не найдена.", 404)
+        old = deal.status
+        if action == "confirm":
+            if old not in ("proof", "hold"):
+                return err("invalid_status", "Подтвердить можно только заявку с отправленными доказательствами или на холде.", 409)
+            offer = await s.get(Offer, deal.offer_id)
+            complete, missing = proofs_complete(deal, offer)
+            if not complete:
+                return err("proofs_incomplete", "Не хватает доказательств: " + "; ".join(missing[:4]), 409)
+            if not (await s.execute(select(Tier.id).where(Tier.offer_id == deal.offer_id))).first():
+                return err("reward_not_configured", "У оффера не настроено вознаграждение.", 409)
+            from bot.logic import confirm
+            try:
+                done = await confirm(bot, s, deal, None, actor_id=request["uid"], comment="Подтверждено через веб-админку")
+            except ValueError as exc:
+                return err("reward_not_configured", str(exc), 409)
+            if not done:
+                return err("already_processed", "Заявка уже обработана другим действием.", 409)
+            return ok({"id": app_id, "status": "confirmed"})
+        if action == "hold":
+            if old not in ("proof", "hold"):
+                return err("invalid_status", "В холд можно перевести только заявку на проверке.", 409)
+            verification = dict(deal.verification or {})
+            if old == "hold" and deal.hold_until:
+                if not verification.get("proof_submitted_at"):
+                    return err("already_on_hold", "Заявка уже находится в холде; срок не изменён.", 409)
+                verification["proof_reviewed_at"] = verification["proof_submitted_at"]
+                deal.verification = verification
+                comment = "Повторные доказательства проверены; исходный срок холда сохранён"
+            else:
+                offer = await s.get(Offer, deal.offer_id)
+                days = int((deal.offer_snapshot or {}).get("hold_days", offer.hold))
+                deal.status = "hold"
+                deal.hold_until = datetime.utcnow() + timedelta(days=days)
+                deal.reviewed_by, deal.reviewed_at = request["uid"], datetime.utcnow()
+                verification.setdefault("network_approved", False)
+                if verification.get("proof_submitted_at"):
+                    verification["proof_reviewed_at"] = verification["proof_submitted_at"]
+                deal.verification = verification
+                comment = f"Ручной холд {days} дней через веб-админку; ожидается решение сети"
+            s.add(DealEvent(app_id=deal.id, actor_id=request["uid"], event="hold_set", from_status=old, to_status=deal.status, comment=comment))
+            await s.commit()
+            await notify(bot, deal.user_id, f"⏳ Заявка #{deal.id} переведена в холд до {deal.hold_until:%d.%m.%Y}. Ожидаем проверку партнёрской сети.")
+            return ok({"id": app_id, "status": "hold"})
+        reason = body.get("reason", "") if isinstance(body, dict) else ""
+        reason = reason.strip() if isinstance(reason, str) else ""
+        if not reason or len(reason) > 1500:
+            return err("bad_reason", "Для отказа укажи причину длиной до 1500 символов.")
+        if old in ("confirmed", "paid", "rejected", "expired"):
+            return err("invalid_status", "Заявка уже закрыта; повторное изменение запрещено.", 409)
+        deal.status, deal.reason = "rejected", reason
+        deal.reviewed_by, deal.reviewed_at = request["uid"], datetime.utcnow()
+        s.add(DealEvent(app_id=deal.id, actor_id=request["uid"], event="rejected", from_status=old, to_status="rejected", comment=reason))
+        user_id = deal.user_id
+        await s.commit()
+    await notify(bot, user_id, f"❌ Заявка #{app_id} отклонена.\nПричина: {reason}\nЕсть вопросы? Открой сделку и напиши в поддержку.")
+    return ok({"id": app_id, "status": "rejected"})
+
+
+async def admin_broadcast_preview(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    audience = body.get("audience", "all") if isinstance(body, dict) else "all"
+    message = body.get("text", "") if isinstance(body, dict) else ""
+    if audience not in {"all", "accepted"}:
+        return err("bad_audience", "Неизвестный сегмент аудитории.")
+    if not isinstance(message, str) or not message.strip() or len(message) > 4096:
+        return err("bad_message", "Текст должен содержать от 1 до 4096 символов.")
+    if not cfg.webapp_url:
+        return err("webapp_not_configured", "WEBAPP_URL не настроен: нельзя добавить кнопку перехода в Bonvera.", 409)
+    from sqlalchemy import func
+    conditions = [User.banned == False]
+    if audience == "accepted":
+        conditions.append(User.accepted == True)
+    async with Session() as s:
+        count = int((await s.execute(select(func.count(User.id)).where(*conditions))).scalar() or 0)
+    return ok({"recipient_count": count, "audience": audience, "text_length": len(message.strip())})
+
+
+async def _run_admin_broadcast(campaign_id: int, bot, recipient_ids: list[int], source_chat_id: int, source_message_id: int, keyboard):
+    sent = failed = 0
+    try:
+        for index, uid in enumerate(recipient_ids, start=1):
+            try:
+                await bot.copy_message(chat_id=uid, from_chat_id=source_chat_id, message_id=source_message_id, reply_markup=keyboard)
+                sent += 1
+            except Exception:
+                failed += 1
+            if index % 10 == 0 or index == len(recipient_ids):
+                async with Session() as s:
+                    campaign = await s.get(BroadcastCampaign, campaign_id)
+                    if campaign:
+                        campaign.sent_count = sent
+                        campaign.failed_count = failed
+                        await s.commit()
+            await asyncio.sleep(0.05)
+        if not recipient_ids:
+            async with Session() as s:
+                campaign = await s.get(BroadcastCampaign, campaign_id)
+                if campaign:
+                    campaign.sent_count = 0
+                    campaign.failed_count = 0
+                    await s.commit()
+    except Exception:
+        logging.exception("web admin broadcast worker failed: campaign=%s", campaign_id)
+    finally:
+        BROADCAST_TASKS.pop(campaign_id, None)
+
+
+async def admin_broadcast_send(request):
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    audience = body.get("audience", "all") if isinstance(body, dict) else "all"
+    message = body.get("text", "") if isinstance(body, dict) else ""
+    if audience not in {"all", "accepted"}:
+        return err("bad_audience", "Неизвестный сегмент аудитории.")
+    if not isinstance(message, str) or not message.strip() or len(message) > 4096:
+        return err("bad_message", "Текст должен содержать от 1 до 4096 символов.")
+    if not cfg.webapp_url:
+        return err("webapp_not_configured", "WEBAPP_URL не настроен: нельзя добавить кнопку перехода в Bonvera.", 409)
+    from bot.admin import broadcast_audience_query, broadcast_keyboard
+    bot = request.app[BOT_KEY]
+    keyboard = broadcast_keyboard()
+    async with Session() as s:
+        recipient_ids = (await s.execute(broadcast_audience_query(audience))).scalars().all()
+        expected_count = body.get("expected_count")
+        if not isinstance(expected_count, int) or expected_count != len(recipient_ids):
+            return err("audience_changed", "Размер аудитории изменился после предпросмотра. Пересчитай аудиторию перед отправкой.", 409)
+        source = await bot.send_message(chat_id=request["uid"], text=message.strip(), reply_markup=keyboard)
+        campaign = BroadcastCampaign(admin_id=request["uid"], source_chat_id=request["uid"], source_message_id=source.message_id, audience=audience, recipient_count=len(recipient_ids))
+        s.add(campaign)
+        await s.commit()
+        campaign_id = campaign.id
+    task = asyncio.create_task(_run_admin_broadcast(campaign_id, bot, recipient_ids, request["uid"], source.message_id, keyboard))
+    BROADCAST_TASKS[campaign_id] = task
+    return ok({"id": campaign_id, "recipient_count": len(recipient_ids), "status": "sending"}, 202)
 
 
 async def admin_offer_enabled(request):
@@ -923,6 +1090,9 @@ def setup_tma(app: web.Application, bot):
     r.add_get("/api/v1/me", me)
     r.add_get("/api/v1/admin/overview", admin_overview)
     r.add_get("/api/v1/admin/section/{section}", admin_section)
+    r.add_post("/api/v1/admin/applications/{id}/action", admin_app_action)
+    r.add_post("/api/v1/admin/broadcasts/preview", admin_broadcast_preview)
+    r.add_post("/api/v1/admin/broadcasts/send", admin_broadcast_send)
     r.add_put("/api/v1/admin/offers/{id}/enabled", admin_offer_enabled)
     r.add_post("/api/v1/admin/payouts/{id}/action", admin_payout_action)
     r.add_post("/api/v1/me/accept", me_accept)

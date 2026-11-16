@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import html
 from pathlib import Path
 import csv
 from aiogram import Router, F, Bot
@@ -727,3 +728,35 @@ async def export_evidence(m: Message, bot: Bot):
         BufferedInputFile(data, filename=f"evidence-{aid}.zip"),
         caption=f"Доказательства сделки #{aid}. Внутри персональные данные — храните безопасно и не пересылайте.",
     )
+
+
+@r.message(Command("dealreply"))
+async def deal_reply(m: Message, bot: Bot):
+    if not adm(m.from_user.id):
+        return
+    parts = (m.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        return await m.answer("Формат: /dealreply ID текст ответа")
+    try:
+        aid = int(parts[1])
+    except ValueError:
+        return await m.answer("ID сделки должен быть числом.")
+    body = parts[2].strip()
+    if not body or len(body) > 2000:
+        return await m.answer("Ответ должен содержать от 1 до 2000 символов.")
+    async with Session() as s:
+        deal = await s.get(App, aid)
+        if deal is None:
+            return await m.answer("Сделка не найдена.")
+        row = DealMessage(app_id=aid, actor_id=m.from_user.id, is_admin=True, body=body)
+        s.add(row)
+        s.add(DealEvent(app_id=aid, actor_id=m.from_user.id, event="support_admin_reply",
+                        from_status=deal.status, to_status=deal.status,
+                        comment="Администратор ответил в поддержке"))
+        await s.commit()
+        user_id = deal.user_id
+    try:
+        await bot.send_message(user_id, f"💬 <b>Ответ поддержки по сделке #{aid}</b>\n{html.escape(body)}")
+    except Exception:
+        pass
+    await m.answer(f"Ответ по сделке #{aid} сохранён и отправлен пользователю.")

@@ -402,7 +402,10 @@ async def wallet(m: Message):
         hold = sum(reward_of(a) for a in apps if a.status == HOLD)
         reserved = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount),0)).where(PayoutReq.user_id==u.id, PayoutReq.status.in_(["pending","processing","review_required"])))).scalar()
         paid = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount),0)).where(PayoutReq.user_id==u.id, PayoutReq.status=="paid"))).scalar()
-        refs = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == u.id))).scalar()
+        referral_commission = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == u.id))).scalar() or 0
+        first_payout_bonuses = (await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(
+            WalletEntry.user_id == u.id, WalletEntry.kind == "task_ref_bonus"))).scalar() or 0
+        refs = int(referral_commission) + int(first_payout_bonuses)
     await m.answer(f"💰 <b>Мой кошелёк</b>\n{'—'*22}\n📝 Оформляются: <b>{pending_setup} ₽</b>\n🟡 На рассмотрении: <b>{review} ₽</b>\n⏳ В холде: <b>{hold} ₽</b>\n🟢 Доступно к выводу: <b>{u.balance} ₽</b>\n🔵 Зарезервировано под вывод: <b>{reserved} ₽</b>\n✅ Уже выплачено: <b>{paid} ₽</b>\n👥 Начисления с друзей: {refs} ₽\n\nМинимальный вывод: {cfg.min_wd} ₽ по СБП.",
                     reply_markup=ik([("💸 Запросить вывод", "wd")], [("📜 История сделок и выплат", "hist")], [("⚙️ Реквизиты и настройки", "settings")]))
 
@@ -547,7 +550,10 @@ async def friends(m: Message, bot: Bot):
         cnt = (await s.execute(select(func.count(User.id)).where(User.referrer_id == u.id))).scalar()
         act = (await s.execute(select(func.count(func.distinct(App.user_id))).join(User, User.id == App.user_id)
                .where(User.referrer_id == u.id, App.status.in_([CONFIRMED, PAID])))).scalar()
-        earn = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == u.id))).scalar()
+        referral_commission = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)).where(RefAcc.referrer_id == u.id))).scalar() or 0
+        first_payout_bonuses = (await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(
+            WalletEntry.user_id == u.id, WalletEntry.kind == "task_ref_bonus"))).scalar() or 0
+        earn = int(referral_commission) + int(first_payout_bonuses)
     url = f"https://t.me/{me.username}?start=ref_{u.id}"
     share = f"https://t.me/share/url?url={url}&text=Кэшбэк за оформление банковской карты"
     await m.answer(f"👥 <b>Приглашай друзей</b>\n\n🔗 {url}\n\nПриглашено: {cnt} · Активных: {act}\n"

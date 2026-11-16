@@ -304,7 +304,7 @@ def test_alembic_chain_has_one_latest_head():
     from alembic.script import ScriptDirectory
     cfg = Config(str(ROOT / "alembic.ini"))
     scripts = ScriptDirectory.from_config(cfg)
-    assert scripts.get_heads() == ["0007_proof_fingerprints"]
+    assert scripts.get_heads() == ["0008_broadcast_campaigns"]
     revisions = {rev.revision: rev.down_revision for rev in scripts.walk_revisions()}
     assert revisions["0007_proof_fingerprints"] == "0006_deal_messages"
     assert revisions["0006_deal_messages"] == "0005_tma_sessions"

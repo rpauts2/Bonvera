@@ -28,6 +28,9 @@ test("an offer card shows brand, product, reward and hold of a real offer", asyn
   assert.ok(html.includes("500"));
   assert.ok(html.includes("холд 14 дн."));
   assert.ok(html.includes("Карты"), "категория оффера подписана");
+  assert.ok(html.includes("Доступно"), "доступный оффер явно отмечен");
+  assert.ok(html.includes("Посмотреть условия"), "карточка ведёт к условиям, а не обещает мгновенную выплату");
+  assert.ok(html.includes("Т"), "резервная бренд-плашка присутствует под изображением");
   assert.ok(html.includes("/offer/11"), "карточка ведёт на страницу предложения");
   assert.ok(html.includes("aspect-video"), "банковская композиция показывается целиком в формате 16:9");
 });

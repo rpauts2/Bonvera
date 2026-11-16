@@ -382,7 +382,7 @@ async def app_proofs_upload(request):
         for filename, data, ext, ph in prepared:
             suspected, matches = False, 0
             if ph:
-                exact, suspected, matches = await services.phash_duplicates(s, ph)
+                exact, suspected, matches = await services.phash_duplicates(s, ph, a.offer_id)
                 candidate = imagehash.hex_to_hash(ph)
                 for prev in batch_hashes:
                     try:
@@ -402,6 +402,18 @@ async def app_proofs_upload(request):
             current_index = next_missing.pop(0) if next_missing else None
             label = required[current_index] if current_index is not None else "Дополнительное подтверждение"
             planned.append((filename, data, ext, ph, current_index, label, suspected, matches))
+
+        # Reserve exact fingerprints before writing files. The database unique
+        # constraint closes the race when two Telegram accounts upload the same
+        # document for this offer at nearly the same time.
+        for _filename, _data, _ext, ph, _idx, _label, _suspected, _matches in planned:
+            if ph:
+                services.add_proof_fingerprint(s, offer_id=a.offer_id, app_id=a.id, user_id=uid, ph=ph)
+        try:
+            await s.flush()
+        except IntegrityError:
+            await s.rollback()
+            return err("duplicate_proof", "Этот документ уже загружали на данный оффер с другого аккаунта. Нужен оригинальный документ именно для вашей заявки.", 409)
 
         items = []
         for filename, data, ext, ph, current_index, label, suspected, matches in planned:

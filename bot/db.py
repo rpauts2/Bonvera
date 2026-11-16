@@ -1,7 +1,7 @@
 from datetime import datetime
 import asyncio
 from pathlib import Path
-from sqlalchemy import BigInteger, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON, func, select, inspect
+from sqlalchemy import BigInteger, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON, func, select, inspect, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from bot.config import cfg
@@ -263,3 +263,16 @@ class DealMessage(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     body: Mapped[str] = mapped_column(Text)
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ProofFingerprint(Base):
+    __tablename__ = "proof_fingerprints"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    offer_id: Mapped[int] = mapped_column(ForeignKey("offers.id"), nullable=False, index=True)
+    app_id: Mapped[int] = mapped_column(ForeignKey("apps.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    phash: Mapped[str] = mapped_column(String(32), nullable=False)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint("offer_id", "phash", name="uq_proof_fingerprint_offer_phash"),
+    )

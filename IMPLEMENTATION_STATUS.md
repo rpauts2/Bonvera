@@ -302,3 +302,12 @@
 - Официальные исходники изображений для остальных 86 офферов (права на использование).
 
 AWS production, `main` и credentials не изменялись. Работа только в `feat/bonvera-mini-app-v2`.
+
+### Этап P — восстановление отсутствовавшей реализации security/cache middleware (2026-11-16)
+
+- Во время независимого запуска свежего checkout обнаружено расхождение: тест test_tma_headers.py импортировал _apply_response_headers, но helper и middleware отсутствовали в bot/tma_api.py; маршрут / также не перенаправлял на Mini App. Ранее заявленный полный прогон на этой ревизии поэтому не мог пройти.
+- Реализован _apply_response_headers() и внешний headers_middleware: заголовки безопасности применяются также к ранним 401/429, редиректам, SPA и статике; HSTS добавляется только при HTTPS или доверенном X-Forwarded-Proto: https.
+- Добавлена политика Cache-Control: API private, no-store, index SPA no-cache, fingerprinted assets immutable на год, offer artwork — 24 часа. Уже заданный Cache-Control доказательств не перезаписывается.
+- Добавлен / → /app (302). Обновлён health-тест под фактический расширенный health payload.
+- Проверки свежего checkout: 115 backend passed, 69 frontend passed, TypeScript + Vite production build успешны, валидатор ассетов: 100/100 уникальных, 7 официальных SVG проверены byte-for-byte, git diff --check чистый.
+- Известное предупреждение: в backend остаются DeprecationWarning от datetime.utcnow(); поведение не менялось в этом исправлении.

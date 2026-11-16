@@ -690,7 +690,11 @@ async def stats(c: CallbackQuery):
         conversion = round(completed_apps * 100 / total_apps, 1) if total_apps else 0
         inc = (await s.execute(select(func.coalesce(func.sum(App.payout), 0)).where(App.status.in_([CONFIRMED, PAID])))).scalar() or 0
         out = (await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(App.status.in_([CONFIRMED, PAID])))).scalar() or 0
-        refs = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)))).scalar() or 0
+        referral_commission = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)))).scalar() or 0
+        first_payout_bonuses = (await s.execute(
+            select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.kind == "task_ref_bonus")
+        )).scalar() or 0
+        refs = int(referral_commission) + int(first_payout_bonuses)
         wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar() or 0
         pending_wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0
         hold_sum = (await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(App.status == HOLD))).scalar() or 0

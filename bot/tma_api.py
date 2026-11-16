@@ -5,6 +5,7 @@ Bearer sessions come from bot.tma_auth after HMAC-verified initData.
 """
 import time
 import re
+import html
 from collections import deque
 from datetime import datetime
 from io import BytesIO
@@ -17,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
-from bot.db import App, Bank, DealEvent, Offer, PayoutEvent, PayoutReq, Session, TmaSession, User
+from bot.db import App, Bank, DealEvent, DealMessage, Offer, PayoutEvent, PayoutReq, Session, TmaSession, User
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data
@@ -507,6 +508,63 @@ async def app_submit(request):
         return ok(await services.app_detail(s, a))
 
 
+
+async def deal_messages_list(request):
+    try:
+        aid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Сделка не найдена.", 404)
+    async with Session() as s:
+        deal = await s.get(App, aid)
+        if deal is None or deal.user_id != request["uid"]:
+            return err("not_found", "Сделка не найдена.", 404)
+        rows = (await s.execute(
+            select(DealMessage).where(DealMessage.app_id == aid).order_by(DealMessage.id.asc()).limit(200)
+        )).scalars().all()
+        return ok([{
+            "id": row.id, "is_admin": row.is_admin, "body": row.body,
+            "created": row.created.isoformat() if row.created else None,
+        } for row in rows])
+
+
+async def deal_message_create(request):
+    try:
+        aid = int(request.match_info["id"])
+    except ValueError:
+        return err("not_found", "Сделка не найдена.", 404)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    text = body.get("body") if isinstance(body, dict) else None
+    if not isinstance(text, str):
+        return err("bad_message", "Напиши сообщение.")
+    text = text.strip()
+    if not text or len(text) > 2000:
+        return err("bad_message", "Сообщение должно содержать от 1 до 2000 символов.")
+    async with Session() as s:
+        deal = await s.get(App, aid)
+        if deal is None or deal.user_id != request["uid"]:
+            return err("not_found", "Сделка не найдена.", 404)
+        row = DealMessage(app_id=aid, actor_id=request["uid"], is_admin=False, body=text)
+        s.add(row)
+        s.add(DealEvent(app_id=aid, actor_id=request["uid"], event="support_message",
+                        from_status=deal.status, to_status=deal.status,
+                        comment="Пользователь написал в поддержку по сделке"))
+        await s.commit()
+        await s.refresh(row)
+        offer = await s.get(Offer, deal.offer_id)
+        offer_name = offer.name if offer else f"сделка #{aid}"
+    bot = request.app[BOT_KEY]
+    for admin_id in cfg.admins:
+        await notify(bot, admin_id, f"💬 <b>Сообщение по сделке #{aid}</b> · {offer_name}\n"
+                                    f"Пользователь: {request['uid']}\n"
+                                    f"<blockquote>{html.escape(text[:1500])}</blockquote>\n"
+                                    f"Ответ: <code>/dealreply {aid} текст</code>")
+    return ok({"id": row.id, "is_admin": False, "body": row.body,
+               "created": row.created.isoformat() if row.created else None}, status=201)
+
+
 async def wallet(request):
     async with Session() as s:
         return ok({
@@ -679,6 +737,8 @@ def setup_tma(app: web.Application, bot):
     r.add_post("/api/v1/apps/{id}/proofs", app_proofs_upload)
     r.add_get("/api/v1/apps/{id}/proofs/{idx}/file", app_proof_file)
     r.add_post("/api/v1/apps/{id}/submit", app_submit)
+    r.add_get("/api/v1/apps/{id}/messages", deal_messages_list)
+    r.add_post("/api/v1/apps/{id}/messages", deal_message_create)
     r.add_get("/api/v1/wallet", wallet)
     r.add_get("/api/v1/wallet/entries", wallet_entries)
     r.add_get("/api/v1/withdrawals", withdrawals_list)

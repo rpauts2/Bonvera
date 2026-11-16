@@ -96,13 +96,18 @@ async def export_evidence(m: Message, bot: Bot | None = None):
 @r.message(Command("admin"))
 async def panel(m: Message):
     if not adm(m.from_user.id): return
-    await m.answer("🛠 <b>Админка</b>", reply_markup=ik(
+    keyboard = ik(
         [("📥 Скрины", "adm:q"), ("⏳ Холды", "adm:h")],
         [("💸 Запросы на вывод", "adm:p"), ("📚 История выплат", "adm:phistory")],
         [("🗂 Офферы", "adm:o"), ("📜 История сделок", "adm:apps")],
         [("📊 Статистика", "adm:s")],
         [("📣 Рассылка", "adm:bc")],
-        [("📤 CSV выплат", "adm:csv")]))
+        [("📤 CSV выплат", "adm:csv")])
+    if cfg.webapp_url:
+        base = cfg.webapp_url.rstrip("/")
+        admin_url = f"{base}/admin/login" if base.endswith("/app") else f"{base}/app/admin/login"
+        keyboard.inline_keyboard.insert(0, [InlineKeyboardButton(text="🌐 Открыть веб-админку", url=admin_url)])
+    await m.answer("🛠 <b>Админка</b>", reply_markup=keyboard)
 
 @r.callback_query(F.data == "adm:q")
 async def q(c: CallbackQuery, bot: Bot):

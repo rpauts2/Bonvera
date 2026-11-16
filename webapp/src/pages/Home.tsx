@@ -104,30 +104,45 @@ export default function Home({ initialData }: { initialData?: Dashboard } = {}) 
         <>
           {/* Финансовая карточка */}
           <section className="px-5 pt-3">
-            <div className="card-gold relative overflow-hidden p-5">
-              <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-gold/10 blur-2xl" />
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] font-semibold uppercase tracking-wider text-indigo-300/70">
-                  Доступно к выводу
-                </span>
+            <div className="home-balance-card card-gold relative overflow-hidden p-5">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-gold/10 blur-2xl" />
+              <div className="pointer-events-none absolute -bottom-16 left-1/3 h-36 w-36 rounded-full bg-electric/10 blur-3xl" />
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-gold/75">
+                    BONVERA · КОШЕЛЁК
+                  </span>
+                  <div className="mt-1 text-[12px] font-semibold text-indigo-200/75">
+                    Доступно к выводу
+                  </div>
+                </div>
                 <Icon name="wallet" className="h-5 w-5 text-gold" />
               </div>
-              <div className="mt-2 text-4xl font-extrabold text-gold-gradient">{rub(available)}</div>
+              <div className="relative mt-2 flex items-end gap-2">
+                <div className="text-[38px] font-extrabold leading-none tracking-tight text-gold-gradient tabular-nums">
+                  {rub(available)}
+                </div>
+                <span className="pb-1 text-[11px] font-semibold text-gold/65">можно вывести</span>
+              </div>
 
               {hasActivity ? (
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-navy-950/50 p-3">
-                    <div className="text-[12px] text-indigo-300/70">Ожидает подтверждения</div>
-                    <div className="mt-1 font-bold text-electric">{rub(pending)}</div>
+                <div className="relative mt-5 grid grid-cols-3 gap-2">
+                  <div className="min-w-0 rounded-2xl border border-white/5 bg-navy-950/55 p-3">
+                    <div className="text-[10px] leading-tight text-indigo-300/70">На проверке</div>
+                    <div className="mt-1 truncate text-[13px] font-extrabold text-electric tabular-nums">{rub(wallet?.review ?? 0)}</div>
                   </div>
-                  <div className="rounded-2xl bg-navy-950/50 p-3">
-                    <div className="text-[12px] text-indigo-300/70">Всего выплачено</div>
-                    <div className="mt-1 font-bold text-emerald-glow">{rub(wallet?.paid_total ?? 0)}</div>
+                  <div className="min-w-0 rounded-2xl border border-white/5 bg-navy-950/55 p-3">
+                    <div className="text-[10px] leading-tight text-indigo-300/70">На удержании</div>
+                    <div className="mt-1 truncate text-[13px] font-extrabold text-amber-glow tabular-nums">{rub(wallet?.hold ?? 0)}</div>
+                  </div>
+                  <div className="min-w-0 rounded-2xl border border-white/5 bg-navy-950/55 p-3">
+                    <div className="text-[10px] leading-tight text-indigo-300/70">Выплачено</div>
+                    <div className="mt-1 truncate text-[13px] font-extrabold text-emerald-glow tabular-nums">{rub(wallet?.paid_total ?? 0)}</div>
                   </div>
                 </div>
               ) : (
                 <p className="mt-3 text-[12px] leading-relaxed text-indigo-300/70">
-                  Пока нет активных заявок и выплат. Оформи предложение — награда придёт после проверки.
+                  Пока нет активных заявок и выплат. Выбери предложение в каталоге — после выполнения условий награда появится здесь.
                 </p>
               )}
 

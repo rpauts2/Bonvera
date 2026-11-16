@@ -341,8 +341,13 @@ def test_session_helpers(loop, db):
 
 def test_health(loop, client):
     resp = loop.run_until_complete(client.get("/health"))
+    payload = loop.run_until_complete(resp.json())
     assert resp.status == 200
-    assert loop.run_until_complete(resp.json()) == {"ok": True}
+    assert payload["ok"] is True
+    assert payload["db_live"] is True
+    assert payload["db"] in ("ok", "unknown")
+    assert "telegram" in payload and "web" in payload
+    assert "X-Content-Type-Options" in resp.headers
 
 
 def test_spa_route_responds(loop, client):

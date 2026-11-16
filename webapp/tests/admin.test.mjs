@@ -16,8 +16,13 @@ test("web admin has standalone browser login with Telegram signed auth", async (
 
 test("admin workspace exposes operational sections and server-backed actions", async () => {
   const admin = await read("pages/Admin.tsx");
-  for (const label of ["Пользователи", "Заявки", "Выплаты", "Офферы", "Рассылки", "Финансы"]) assert.ok(admin.includes(label));
+  for (const label of ["Пользователи", "Заявки", "Выплаты", "Офферы", "Рассылки", "Финансы", "Журнал действий"]) assert.ok(admin.includes(label));
   assert.match(admin, /admin\/offers\/.*enabled/);
+  assert.match(admin, /admin\/applications\/.*proof/);
+  assert.match(admin, /admin\/users\/.*action/);
+  assert.match(admin, /const saveOffer=/);
+  assert.match(admin, /admin\/offers\/\$\{offerEdit\.id\}/);
+  assert.match(admin, /Отказать и вернуть/);
   assert.match(admin, /admin\/applications\/.*action/);
   assert.match(admin, /admin\/payouts\/.*action/);
   assert.match(admin, /admin\/broadcasts\/preview/);

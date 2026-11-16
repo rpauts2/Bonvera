@@ -213,6 +213,19 @@ class CatalogState(Base):
     value: Mapped[str] = mapped_column(String(200), default="")
 
 
+class BroadcastCampaign(Base):
+    __tablename__ = "broadcast_campaigns"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source_chat_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source_message_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    audience: Mapped[str] = mapped_column(String(20), nullable=False)
+    recipient_count: Mapped[int] = mapped_column(Integer, default=0)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class DealEvent(Base):
     __tablename__ = "deal_events"
     id: Mapped[int] = mapped_column(primary_key=True)

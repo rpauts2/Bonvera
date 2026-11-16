@@ -60,14 +60,35 @@ async def export_evidence(m: Message, bot: Bot | None = None):
         app = await s.get(App, aid)
         if app is None:
             return await m.answer(f"Сделка #{aid} не найдена.")
-        from bot.tma_files import build_evidence_zip
-        archive = build_evidence_zip(app.proof_files or [])
+        items = list(app.proof_files or [])
+    # Legacy bot uploads are stored as Telegram file_id values; Mini App uploads
+    # are private on-disk files. Include both sources in the same archive.
+    external_files = []
+    unavailable = 0
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or not item.get("file_id") or item.get("storage"):
+            continue
+        if bot is None:
+            unavailable += 1
+            continue
+        try:
+            telegram_file = await bot.get_file(item["file_id"])
+            payload = io.BytesIO()
+            await bot.download_file(telegram_file.file_path, destination=payload)
+            external_files.append((index, item.get("name") or f"proof-{index + 1}", payload.getvalue()))
+        except Exception:
+            unavailable += 1
+    from bot.tma_files import build_evidence_zip
+    archive = build_evidence_zip(items, external_files=external_files)
     if not archive:
-        return await m.answer(f"У сделки #{aid} нет доступных файлов доказательств.")
-    from aiogram.types import BufferedInputFile
+        detail = f" Не удалось получить {unavailable} файлов из Telegram." if unavailable else ""
+        return await m.answer(f"У сделки #{aid} нет доступных файлов доказательств.{detail}")
+    caption = f"Доказательства по сделке #{aid}. Храните архив безопасно: он может содержать персональные данные."
+    if unavailable:
+        caption += f" Не удалось добавить файлов из Telegram: {unavailable}."
     await m.answer_document(
         BufferedInputFile(archive, filename=f"evidence-{aid}.zip"),
-        caption=f"Доказательства по сделке #{aid}. Храните архив безопасно: он может содержать персональные данные.",
+        caption=caption,
     )
 
 

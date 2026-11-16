@@ -22,6 +22,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Support = lazy(() => import("./pages/Support"));
 const Rules = lazy(() => import("./pages/Rules"));
+const Admin = lazy(() => import("./pages/Admin"));
 
 const TAB_PATHS = ["/", "/tasks", "/catalog", "/friends", "/profile"];
 
@@ -41,6 +42,7 @@ function Shell() {
       <Suspense fallback={<BootScreen />}>
         <div className={showTabs ? "safe-bottom" : "pb-10"}>
           <Routes>
+            <Route path="/admin" element={<Admin />} />
             <Route path="/" element={<Home />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/catalog" element={<Catalog />} />

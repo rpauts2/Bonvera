@@ -53,6 +53,7 @@ async def panel(m: Message):
     if not adm(m.from_user.id): return
     await m.answer("🛠 <b>Админка</b>", reply_markup=ik(
         [("📥 Скрины", "adm:q"), ("⏳ Холды", "adm:h")],
+        [("💬 Поддержка", "adm:support")],
         [("💸 Запросы на вывод", "adm:p"), ("📚 История выплат", "adm:phistory")],
         [("🗂 Офферы", "adm:o"), ("📜 История сделок", "adm:apps")],
         [("📊 Статистика", "adm:s")],
@@ -760,3 +761,31 @@ async def deal_reply(m: Message, bot: Bot):
     except Exception:
         pass
     await m.answer(f"Ответ по сделке #{aid} сохранён и отправлен пользователю.")
+
+
+@r.callback_query(F.data == "adm:support")
+async def support_queue(c: CallbackQuery):
+    if not adm(c.from_user.id):
+        return await c.answer()
+    async with Session() as s:
+        rows = (await s.execute(
+            select(DealMessage, App.user_id).join(App, App.id == DealMessage.app_id)
+            .order_by(DealMessage.id.desc()).limit(100)
+        )).all()
+        latest = {}
+        for message, user_id in rows:
+            if message.app_id not in latest:
+                latest[message.app_id] = (message, user_id)
+        if not latest:
+            await c.message.answer("💬 Очередь поддержки пуста.")
+            return await c.answer()
+        chunks = ["💬 <b>Последние диалоги по сделкам</b>"]
+        for aid, (message, user_id) in list(latest.items())[:12]:
+            direction = "Ответ администратора" if message.is_admin else "Сообщение пользователя"
+            chunks.append(
+                f"\n<b>Сделка #{aid}</b> · пользователь {user_id}\n"
+                f"{direction}: {html.escape(message.body[:500])}\n"
+                f"Ответить: <code>/dealreply {aid} текст</code>"
+            )
+    await c.message.answer("\n".join(chunks))
+    await c.answer()

@@ -80,37 +80,65 @@ export default function OfferPage() {
         <>
           <section className="px-5">
             <div className="card-glass overflow-hidden">
-              <div className="relative aspect-video w-full overflow-hidden bg-navy-800">
-                <img
-                  src={offer.image_url}
-                  alt={`${offer.brand} · ${offer.name}`}
-                  className="h-full w-full object-cover"
-                />
+              <div className="relative aspect-video w-full overflow-hidden bg-[radial-gradient(circle_at_25%_20%,rgba(34,211,238,.18),transparent_42%),linear-gradient(135deg,#17234b,#090e20)]">
+                <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-3xl font-black text-white/80 shadow-2xl">
+                    {offer.brand.trim().charAt(0).toUpperCase() || "B"}
+                  </div>
+                </div>
+                {offer.image_url && (
+                  <img
+                    src={offer.image_url}
+                    alt={offer.brand + " · " + offer.name}
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                    className="relative z-[1] h-full w-full object-cover"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-navy-950 via-navy-950/20 to-transparent" />
-                <span className="absolute left-4 top-4 rounded-full border border-royal/30 bg-navy-950/80 px-3 py-1 text-[12px] font-bold text-indigo-200 backdrop-blur">
+                <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-navy-950/80 px-3 py-1 text-[11px] font-bold text-indigo-100 backdrop-blur">
                   {CAT_LABEL[offer.category] ?? offer.category}
                 </span>
+                {offer.available && (
+                  <span className="absolute right-4 top-4 rounded-full border border-emerald-glow/30 bg-navy-950/85 px-3 py-1 text-[10px] font-bold text-emerald-glow backdrop-blur">
+                    Можно оформить
+                  </span>
+                )}
               </div>
-              <div className="p-5">
-                <div className="text-[12px] font-semibold uppercase tracking-wide text-indigo-300/75">
-                  {offer.emoji} {offer.brand}
-                </div>
-                <h2 className="mt-1 text-lg font-extrabold leading-snug">{offer.name}</h2>
-                <div className="mt-3 flex items-end justify-between">
-                  <div>
-                    <div className="text-3xl font-extrabold text-gold-gradient">
-                      {offer.reward.toLocaleString("ru-RU")} ₽
-                    </div>
-                    <div className="text-[12px] text-indigo-300/70">награда за выполнение</div>
+              <div className="space-y-4 p-5">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-300/75">
+                    {offer.emoji} {offer.brand}
                   </div>
-                  <div className="text-right text-[12px] text-indigo-300/75">
-                    <div className="flex items-center justify-end gap-1">
-                      <Icon name="clock" className="h-3.5 w-3.5" /> холд {offer.hold_days} дн.
-                    </div>
-                    {offer.purchase_min > 0 && <div className="mt-1">покупка от {offer.purchase_min} ₽</div>}
-                    <div className="mt-1">
-                      возраст {ageRangeLabel(offer.age_min, offer.age_max)}
-                    </div>
+                  <h2 className="mt-1 text-xl font-extrabold leading-snug text-white">{offer.name}</h2>
+                </div>
+
+                <div className="rounded-2xl border border-gold/20 bg-gradient-to-r from-gold/10 via-gold/5 to-transparent p-4">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-gold/75">
+                    Твоё вознаграждение
+                  </div>
+                  <div className="mt-1 text-4xl font-black tracking-tight text-gold-gradient">
+                    {offer.reward.toLocaleString("ru-RU")} ₽
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-indigo-200/65">
+                    Начисление после подтверждения выполнения условий партнёра.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
+                    <Icon name="clock" className="h-4 w-4 text-electric" />
+                    <div className="mt-2 text-sm font-extrabold text-white">{offer.hold_days} дн.</div>
+                    <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">удержание</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
+                    <Icon name="profile" className="h-4 w-4 text-electric" />
+                    <div className="mt-2 text-sm font-extrabold text-white">{ageRangeLabel(offer.age_min, offer.age_max)}</div>
+                    <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">возраст</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
+                    <Icon name="check" className="h-4 w-4 text-electric" />
+                    <div className="mt-2 text-sm font-extrabold text-white">{offer.purchase_min > 0 ? offer.purchase_min + " ₽" : "Не указан"}</div>
+                    <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">условие</div>
                   </div>
                 </div>
               </div>
@@ -169,7 +197,7 @@ export default function OfferPage() {
             </section>
           )}
 
-          <SectionTitle>Условие</SectionTitle>
+          <SectionTitle>Что нужно сделать</SectionTitle>
           <section className="px-5">
             <div className="card-glass space-y-3 p-5 text-sm leading-relaxed text-indigo-200/80">
               {conditionText && <p className="font-bold text-indigo-100">{conditionText}</p>}

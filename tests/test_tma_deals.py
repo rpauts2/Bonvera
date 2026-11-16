@@ -261,6 +261,20 @@ def test_proof_upload_dedup_and_stream(loop, client, offers):
     status, body = upload(loop, client, token, aid, [("copy.png", first)])
     assert status == 409 and body["err"]["code"] == "duplicate_proof"
 
+    # A fresh Telegram account cannot reuse the same document for the same offer.
+    other_account = accepted_user(loop, client, 920115)
+    other_status, other_app = take(loop, client, other_account, oid(loop, "tst_card_a"))
+    assert other_status == 201
+    other_aid = other_app["data"]["app_id"]
+    status, body = upload(loop, client, other_account, other_aid, [("same-document.png", first)])
+    assert status == 409 and body["err"]["code"] == "duplicate_proof"
+
+    # The same image is allowed on a different offer: deduplication is offer-scoped.
+    other_offer_status, other_offer = take(loop, client, other_account, oid(loop, "tst_two"))
+    assert other_offer_status == 201
+    status, body = upload(loop, client, other_account, other_offer["data"]["app_id"], [("other-offer.png", first)])
+    assert status == 200, body
+
     status, body = upload(loop, client, token, aid, [("extra.png", png_bytes(2))])
     assert status == 200
     assert body["data"]["proofs"][1]["index"] is None

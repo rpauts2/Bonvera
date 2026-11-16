@@ -3,9 +3,15 @@
 Files live outside any static route: they are streamed only through the
 authenticated API (owner) or sent to admins via the bot. No public permanent
 links are ever produced.
+
+Lifecycle: a proof file lives while its deal is open, then is deleted by the
+retention policy (`bot/retention.py`). Metadata about the upload stays in the
+database for audit; only the personal bytes are removed.
 """
+import io
 import re
 import uuid
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -60,3 +66,61 @@ def resolve_proof(storage: str) -> Path:
     if not path.is_relative_to(PROOF_DIR.resolve()) or not path.is_file():
         raise FileError("not_found", "Файл не найден.")
     return path
+
+
+def delete_proof(storage: str) -> bool:
+    """Remove one stored file from disk. Returns True when a file was deleted."""
+    if not storage or not re.fullmatch(r"\d+/[0-9a-f]{32}\.[a-z0-9]+", storage or ""):
+        return False
+    path = (PROOF_DIR / storage).resolve()
+    if not path.is_relative_to(PROOF_DIR.resolve()) or not path.is_file():
+        return False
+    path.unlink()
+    return True
+
+
+def purge_app_files(items: list) -> int:
+    """Delete every stored file of one deal; returns the number of removed files."""
+    removed = 0
+    for item in items or []:
+        if isinstance(item, dict) and item.get("storage") and delete_proof(item["storage"]):
+            removed += 1
+    return removed
+
+
+def build_evidence_zip(items: list) -> bytes | None:
+    """Pack the still existing evidence of one deal into a zip archive.
+
+    Used by the admin export command: the archive is sent to an administrator
+    in Telegram and never becomes a public link.
+    """
+    buffer = io.BytesIO()
+    added = 0
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for index, item in enumerate(items or []):
+            if not isinstance(item, dict) or not item.get("storage"):
+                continue
+            try:
+                path = resolve_proof(item["storage"])
+            except FileError:
+                continue
+            label = (item.get("label") or "proof").strip()[:60]
+            suffix = path.suffix.lower()
+            name = f"{index + 1:02d}_{label}{suffix}".replace("/", "_")
+            archive.write(path, arcname=name)
+            added += 1
+    if not added:
+        return None
+    return buffer.getvalue()
+
+
+def proof_disk_usage() -> tuple[int, int]:
+    """(files, bytes) currently stored on disk."""
+    files = 0
+    total = 0
+    if PROOF_DIR.exists():
+        for path in PROOF_DIR.rglob("*"):
+            if path.is_file():
+                files += 1
+                total += path.stat().st_size
+    return files, total

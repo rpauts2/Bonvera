@@ -76,7 +76,7 @@ export default function Home({ initialData }: { initialData?: Dashboard } = {}) 
           >
             <Icon name="bell" className="h-5 w-5" />
             {data && data.unread_notifications > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-alert px-1 text-[10px] font-bold text-white">
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-alert px-1 text-[12px] font-bold text-white">
                 {data.unread_notifications}
               </span>
             )}

@@ -334,7 +334,11 @@ def test_session_helpers(loop, db):
 def test_health(loop, client):
     resp = loop.run_until_complete(client.get("/health"))
     assert resp.status == 200
-    assert loop.run_until_complete(resp.json()) == {"ok": True}
+    body = loop.run_until_complete(resp.json())
+    assert body["ok"] is True
+    assert body["db_live"] is True
+    for key in ("db", "telegram", "web", "last_check", "started_at"):
+        assert key in body
 
 
 def test_spa_route_responds(loop, client):

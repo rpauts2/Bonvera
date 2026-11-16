@@ -1,6 +1,7 @@
 from aiohttp import web
 from datetime import datetime, timedelta
 import hmac
+import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
 from bot.config import cfg
@@ -97,7 +98,11 @@ def make_web(bot):
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/postback", pb)
     async def health(req):
-        return web.json_response({"ok": True})
+        from bot.monitoring import check_db, health_payload
+        payload = health_payload()
+        payload["db_live"] = await check_db()
+        payload["ok"] = bool(payload["db_live"] and payload.get("ok", True))
+        return web.json_response(payload, status=200 if payload["ok"] else 503)
     app.router.add_get("/health", health)
     from bot.tma_api import setup_tma
     setup_tma(app, bot)
@@ -105,6 +110,9 @@ def make_web(bot):
 
 def make_scheduler(bot):
     sch = AsyncIOScheduler()
+    from bot.monitoring import HEALTH, watchdog
+    from bot.retention import purge_expired_evidence
+    HEALTH["started_at"] = datetime.utcnow().isoformat(timespec="seconds")
     async def expire():
         async with Session() as s:
             lim = datetime.utcnow() - timedelta(hours=cfg.booking_h)
@@ -131,7 +139,15 @@ def make_scheduler(bot):
                     await notify(bot, ad, f"⚠️ Сделка #{a.id}: {note}. Награда не начислена автоматически. Открой /admin → Холды → сделка.")
                 await notify(bot, a.user_id, f"⏳ Срок холда по сделке #{a.id} завершился. Сделка передана на финальную ручную проверку; статус и сумма будут обновлены после решения администратора.")
             await s.commit()
+    async def evidence_purge():
+        """Чистка доказательств по политике хранения (ежедневно)."""
+        try:
+            await purge_expired_evidence(bot)
+        except Exception:  # noqa: BLE001 — чистка не должна ронять планировщик
+            logging.exception("не удалось выполнить чистку доказательств")
     sch.add_job(expire, "interval", minutes=30)
     sch.add_job(remind, "interval", minutes=60)
     sch.add_job(hold_check, "interval", minutes=15)
+    sch.add_job(evidence_purge, "interval", hours=24, id="evidence_purge", jitter=3600)
+    sch.add_job(watchdog, "interval", minutes=max(1, cfg.health_interval_min), id="watchdog", args=[bot])
     return sch

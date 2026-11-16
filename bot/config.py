@@ -24,6 +24,14 @@ class Cfg:
     channel_url: str = os.getenv("BONVERA_CHANNEL_URL", "")
     support_url: str = os.getenv("BONVERA_SUPPORT_URL", "")
     tma_session_hours: int = int(os.getenv("TMA_SESSION_HOURS", "24"))
+    # Политика хранения доказательств: сколько дней живут файлы закрытой сделки
+    # и как долго ждут незакрытые (пользователь исчез).
+    proof_retention_days: int = int(os.getenv("PROOF_RETENTION_DAYS", "180"))
+    proof_open_grace_days: int = int(os.getenv("PROOF_OPEN_GRACE_DAYS", "365"))
+    proof_purge_enabled: bool = _b("PROOF_PURGE_ENABLED", "true")
+    # Мониторинг: как часто проверять живость сервиса и когда слать алерт админам.
+    health_interval_min: int = int(os.getenv("HEALTH_INTERVAL_MIN", "5"))
+    health_alert_cooldown_min: int = int(os.getenv("HEALTH_ALERT_COOLDOWN_MIN", "30"))
 
 cfg = Cfg()
 

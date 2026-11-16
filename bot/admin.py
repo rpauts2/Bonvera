@@ -5,7 +5,7 @@ from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from sqlalchemy import select, func
 from bot.config import cfg
 from bot.db import *
@@ -703,3 +703,27 @@ async def ban(m: Message):
         u = await s.get(User, uid)
         if u: u.banned = not u.banned; await s.commit(); return await m.answer(f"{'🚫 забанен' if u.banned else '✅ разбанен'} {uid}")
     await m.answer("Не найден")
+
+@r.message(Command("export"))
+async def export_evidence(m: Message, bot: Bot):
+    """Выгрузка доказательств сделки администратору: zip приходит в Telegram, публичных ссылок нет."""
+    if not adm(m.from_user.id): return
+    parts = m.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return await m.answer("/export <id сделки> — архив с доказательствами приходит только администратору.")
+    aid = int(parts[1])
+    async with Session() as s:
+        app = await s.get(App, aid)
+    if not app:
+        return await m.answer(f"Сделка #{aid} не найдена.")
+    from bot.tma_files import build_evidence_zip
+    data = build_evidence_zip(app.proof_files or [])
+    if not data:
+        return await m.answer(
+            f"По сделке #{aid} нет файлов на диске: удалены по политике хранения "
+            "или загружены как Telegram file_id (открой карточку сделки в /admin)."
+        )
+    await m.answer_document(
+        BufferedInputFile(data, filename=f"evidence-{aid}.zip"),
+        caption=f"Доказательства сделки #{aid}. Внутри персональные данные — храните безопасно и не пересылайте.",
+    )

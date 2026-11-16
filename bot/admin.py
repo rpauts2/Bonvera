@@ -1,15 +1,11 @@
 from datetime import datetime, timedelta
-import html
 from pathlib import Path
 import csv
-from io import BytesIO
-import re
-from PIL import Image, ImageOps
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from sqlalchemy import select, func
 from bot.config import cfg
 from bot.db import *
@@ -21,7 +17,7 @@ from bot.offer_rules import bk_approval_must_be_reset
 
 r = Router()
 class A(StatesGroup):
-    rej = State(); needinfo = State(); bc = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State(); image = State()
+    rej = State(); needinfo = State(); bc = State(); url = State(); mfo = State(); appr = State(); edit = State(); verify = State(); notes = State()
 
 
 def _proof_input(item):
@@ -56,7 +52,6 @@ async def panel(m: Message):
     if not adm(m.from_user.id): return
     await m.answer("🛠 <b>Админка</b>", reply_markup=ik(
         [("📥 Скрины", "adm:q"), ("⏳ Холды", "adm:h")],
-        [("💬 Поддержка", "adm:support")],
         [("💸 Запросы на вывод", "adm:p"), ("📚 История выплат", "adm:phistory")],
         [("🗂 Офферы", "adm:o"), ("📜 История сделок", "adm:apps")],
         [("📊 Статистика", "adm:s")],
@@ -436,7 +431,6 @@ async def offer_adm(c: CallbackQuery):
         [("📊 ПСК (МФО)", f"adm:mfo:{oid}"), ("✅ Согласовано", f"adm:ap:{oid}")],
         [("✏️ Изменить условия/выплаты", f"adm:edit:{oid}")],
         [("🧾 Настроить проверку/скрины", f"adm:verify:{oid}")],
-        [("🖼 Изменить изображение", f"adm:image:{oid}")],
         [("🎁 Изменить бонус/примечание", f"adm:notes:{oid}")],
         [("⬅️ К списку", "adm:o")]))
     await c.answer()
@@ -578,75 +572,6 @@ async def edit_offer_do(m: Message, state: FSMContext):
         await s.commit()
     await state.clear(); await m.answer("Карточка оффера обновлена. Ссылка, условия, суммы и холд сохранены." + (" Согласование БК сброшено — до нового письменного подтверждения сделки недоступны." if reset_bk_approval else ""))
 
-@r.callback_query(F.data.startswith("adm:image:"))
-async def edit_offer_image(c: CallbackQuery, state: FSMContext):
-    if not adm(c.from_user.id): return
-    oid = int(c.data.split(":")[2])
-    async with Session() as s:
-        o = await s.get(Offer, oid)
-        if o is None:
-            await c.answer("Оффер не найден", show_alert=True)
-            return
-        code = o.code
-    await state.set_state(A.image)
-    await state.update_data(oid=oid)
-    await c.message.answer(
-        f"Пришли фотографию для оффера <b>{html.escape(code)}</b>. "
-        "Изображение будет безопасно пересохранено в JPEG, исходные метаданные удалятся. "
-        "Максимальный размер исходного файла — 8 МБ. Чтобы отменить, отправь /cancel."
-    )
-    await c.answer()
-
-
-@r.message(A.image)
-async def edit_offer_image_do(m: Message, state: FSMContext, bot: Bot):
-    if not adm(m.from_user.id): return
-    if (m.text or "").strip() == "/cancel":
-        await state.clear()
-        return await m.answer("Загрузка изображения отменена.")
-    if not m.photo:
-        return await m.answer("Нужно отправить именно фотографию Telegram, не документ. Для отмены — /cancel.")
-    photo = m.photo[-1]
-    if photo.file_size and photo.file_size > 8 * 1024 * 1024:
-        return await m.answer("Файл больше 8 МБ. Отправь изображение меньшего размера.")
-    data = await state.get_data()
-    oid = int(data.get("oid", 0))
-    try:
-        buf = BytesIO()
-        await bot.download(photo, destination=buf)
-        if buf.tell() > 8 * 1024 * 1024:
-            return await m.answer("Скачанный файл больше 8 МБ. Отправь изображение меньшего размера.")
-        buf.seek(0)
-        with Image.open(buf) as source:
-            source.verify()
-        buf.seek(0)
-        with Image.open(buf) as source:
-            image = ImageOps.exif_transpose(source).convert("RGB")
-            image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
-            output = BytesIO()
-            image.save(output, format="JPEG", quality=88, optimize=True)
-            output.seek(0)
-    except Exception:
-        return await m.answer("Не удалось прочитать изображение. Отправь обычную фотографию в формате JPEG/PNG/WebP.")
-
-    async with Session() as s:
-        o = await s.get(Offer, oid)
-        if o is None:
-            await state.clear()
-            return await m.answer("Оффер больше не найден. Загрузка отменена.")
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", o.code or ""):
-            return await m.answer("У оффера некорректный системный код. Изображение не сохранено.")
-        target_dir = Path("assets/offers/custom")
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target = target_dir / f"{o.code}.jpg"
-        target.write_bytes(output.getvalue())
-        o.image_path = target.as_posix()
-        await offer_audit(s, o.id, m.from_user.id, "image_changed", "Обновлено изображение оффера")
-        await s.commit()
-    await state.clear()
-    await m.answer("Изображение оффера обновлено. Оно будет показано в каталоге Mini App и карточке Telegram.")
-
-
 @r.callback_query(F.data.startswith("adm:notes:"))
 async def edit_notes(c: CallbackQuery, state: FSMContext):
     if not adm(c.from_user.id): return
@@ -710,19 +635,36 @@ async def export_csv(c: CallbackQuery):
 async def stats(c: CallbackQuery):
     if not adm(c.from_user.id): return
     async with Session() as s:
-        u = (await s.execute(select(func.count(User.id)))).scalar()
+        u = (await s.execute(select(func.count(User.id)))).scalar() or 0
         by = dict((await s.execute(select(App.status, func.count(App.id)).group_by(App.status))).all())
-        inc = (await s.execute(select(func.coalesce(func.sum(App.payout), 0)).where(App.status.in_([CONFIRMED, PAID])))).scalar()
-        out = (await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(App.status.in_([CONFIRMED, PAID])))).scalar()
-        refs = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)))).scalar()
-        wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar()
+        total_apps = sum(by.values())
+        completed_apps = int(by.get(CONFIRMED, 0) or 0) + int(by.get(PAID, 0) or 0)
+        conversion = round(completed_apps * 100 / total_apps, 1) if total_apps else 0
+        inc = (await s.execute(select(func.coalesce(func.sum(App.payout), 0)).where(App.status.in_([CONFIRMED, PAID])))).scalar() or 0
+        out = (await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(App.status.in_([CONFIRMED, PAID])))).scalar() or 0
+        refs = (await s.execute(select(func.coalesce(func.sum(RefAcc.amount), 0)))).scalar() or 0
+        wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar() or 0
+        pending_wd = (await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0
+        hold_sum = (await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(App.status == HOLD))).scalar() or 0
     status_ru = {NEW:"оформляются", PROOF:"на проверке", HOLD:"в холде", CONFIRMED:"подтверждены", PAID:"выплачены", REJECTED:"отклонены", EXPIRED:"истекли"}
     by_ru = ", ".join(f"{status_ru.get(k,k)}: {v}" for k,v in by.items()) or "нет заявок"
     margin_text = (f"Предварительная разница по postback: {inc - out - refs} ₽\n"
-                   "(до расходов; комиссии из postback не означают, что деньги уже поступили на счёт)."
+                   "(до расходов; postback не подтверждает фактическое поступление денег)."
                    if inc > 0 else "Предварительную маржу пока нельзя оценить: нет комиссий сети в postback.")
-    await c.message.answer(f"📊 Пользователей: {u}\nЗаявки: {by_ru}\n\nКомиссии сети по postback: {inc} ₽ (не подтверждение фактического поступления)\nКэшбэк начислен: {out} ₽\nРеферальные начисления: {refs} ₽\n"
-                           f"Фактически отмечено выплаченным пользователям: {wd} ₽\n{margin_text}")
+    await c.message.answer(
+        f"📊 <b>Показатели BONVERA</b>\n"
+        f"Пользователей: {u}\n"
+        f"Всего заявок: {total_apps} · подтверждено/выплачено: {completed_apps} ({conversion}%)\n"
+        f"Статусы: {by_ru}\n\n"
+        f"💼 <b>Деньги</b>\n"
+        f"Комиссии сети по postback: {inc} ₽\n"
+        f"Вознаграждения пользователям: {out} ₽\n"
+        f"Реферальные начисления: {refs} ₽\n"
+        f"Сумма в холде: {hold_sum} ₽\n"
+        f"Ожидают обработки на вывод: {pending_wd} ₽\n"
+        f"Фактически отмечено выплаченным: {wd} ₽\n"
+        f"{margin_text}"
+    )
     await c.answer()
 
 @r.callback_query(F.data == "adm:bc")
@@ -778,88 +720,3 @@ async def ban(m: Message):
         u = await s.get(User, uid)
         if u: u.banned = not u.banned; await s.commit(); return await m.answer(f"{'🚫 забанен' if u.banned else '✅ разбанен'} {uid}")
     await m.answer("Не найден")
-
-@r.message(Command("export"))
-async def export_evidence(m: Message, bot: Bot):
-    """Выгрузка доказательств сделки администратору: zip приходит в Telegram, публичных ссылок нет."""
-    if not adm(m.from_user.id): return
-    parts = m.text.split()
-    if len(parts) < 2 or not parts[1].isdigit():
-        return await m.answer("/export <id сделки> — архив с доказательствами приходит только администратору.")
-    aid = int(parts[1])
-    async with Session() as s:
-        app = await s.get(App, aid)
-    if not app:
-        return await m.answer(f"Сделка #{aid} не найдена.")
-    from bot.tma_files import build_evidence_zip
-    data = build_evidence_zip(app.proof_files or [])
-    if not data:
-        return await m.answer(
-            f"По сделке #{aid} нет файлов на диске: удалены по политике хранения "
-            "или загружены как Telegram file_id (открой карточку сделки в /admin)."
-        )
-    await m.answer_document(
-        BufferedInputFile(data, filename=f"evidence-{aid}.zip"),
-        caption=f"Доказательства сделки #{aid}. Внутри персональные данные — храните безопасно и не пересылайте.",
-    )
-
-
-@r.message(Command("dealreply"))
-async def deal_reply(m: Message, bot: Bot):
-    if not adm(m.from_user.id):
-        return
-    parts = (m.text or "").split(maxsplit=2)
-    if len(parts) < 3:
-        return await m.answer("Формат: /dealreply ID текст ответа")
-    try:
-        aid = int(parts[1])
-    except ValueError:
-        return await m.answer("ID сделки должен быть числом.")
-    body = parts[2].strip()
-    if not body or len(body) > 2000:
-        return await m.answer("Ответ должен содержать от 1 до 2000 символов.")
-    async with Session() as s:
-        deal = await s.get(App, aid)
-        if deal is None:
-            return await m.answer("Сделка не найдена.")
-        row = DealMessage(app_id=aid, actor_id=m.from_user.id, is_admin=True, body=body)
-        s.add(row)
-        s.add(DealEvent(app_id=aid, actor_id=m.from_user.id, event="support_admin_reply",
-                        from_status=deal.status, to_status=deal.status,
-                        comment="Администратор ответил в поддержке"))
-        await s.commit()
-        user_id = deal.user_id
-    try:
-        await bot.send_message(user_id, f"💬 <b>Ответ поддержки по сделке #{aid}</b>\n{html.escape(body)}")
-    except Exception:
-        pass
-    await m.answer(f"Ответ по сделке #{aid} сохранён и отправлен пользователю.")
-
-
-@r.callback_query(F.data == "adm:support")
-async def support_queue(c: CallbackQuery):
-    if not adm(c.from_user.id):
-        return await c.answer()
-    async with Session() as s:
-        rows = (await s.execute(
-            select(DealMessage, App.user_id).join(App, App.id == DealMessage.app_id)
-            .order_by(DealMessage.id.desc()).limit(100)
-        )).all()
-        latest = {}
-        for message, user_id in rows:
-            if message.app_id not in latest:
-                latest[message.app_id] = (message, user_id)
-        if not latest:
-            await c.message.answer("💬 Очередь поддержки пуста.")
-            return await c.answer()
-        chunks = ["💬 <b>Последние диалоги по сделкам</b>"]
-        for aid, (message, user_id) in list(latest.items())[:12]:
-            direction = "Ответ администратора" if message.is_admin else "Сообщение пользователя"
-            chunks.append(
-                f"\n<b>Сделка #{aid}</b> · пользователь {user_id}\n"
-                f"{direction}: {html.escape(message.body[:500])}\n"
-                f"Ответить: <code>/dealreply {aid} текст</code>"
-            )
-    await c.message.answer("\n".join(chunks))
-    await c.answer()
-

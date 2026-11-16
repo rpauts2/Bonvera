@@ -88,7 +88,7 @@ def purge_app_files(items: list) -> int:
     return removed
 
 
-def build_evidence_zip(items: list) -> bytes | None:
+def build_evidence_zip(items: list, external_files: list | None = None) -> bytes | None:
     """Pack the still existing evidence of one deal into a zip archive.
 
     Used by the admin export command: the archive is sent to an administrator
@@ -108,6 +108,17 @@ def build_evidence_zip(items: list) -> bytes | None:
             suffix = path.suffix.lower()
             name = f"{index + 1:02d}_{label}{suffix}".replace("/", "_")
             archive.write(path, arcname=name)
+            added += 1
+        for index, filename, data in external_files or []:
+            if not data:
+                continue
+            # Telegram-origin files are downloaded by the authorized admin handler;
+            # store them under a flat, sanitized archive name to prevent ZIP paths.
+            suffix = Path(filename or "").suffix.lower()
+            if suffix not in ALLOWED_EXT:
+                suffix = ".bin"
+            stem = re.sub(r"[^0-9A-Za-zА-Яа-я_-]+", "_", Path(filename or "proof").stem)[:48] or "proof"
+            archive.writestr(f"{int(index) + 1:02d}_{stem}{suffix}", data)
             added += 1
     if not added:
         return None

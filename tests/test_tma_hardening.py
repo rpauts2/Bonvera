@@ -16,7 +16,7 @@ from bot import admin as admin_mod
 from bot import logic
 from bot.config import cfg
 from bot.db import (
-    App, DealEvent, PayoutEvent, PayoutReq, Session, WalletEntry,
+    App, DealEvent, DealMessage, PayoutEvent, PayoutReq, Session, User, WalletEntry,
     CONFIRMED, HOLD, PROOF, REJECTED,
 )
 from bot.logic import subid
@@ -347,3 +347,47 @@ def test_admin_payout_reject_returns_reserved_funds_once(loop, client, offers, m
     state.data = {"payout_id": pid}
     loop.run_until_complete(admin_mod.rej_do(message, state, BotStub()))
     loop.run_until_complete(verify())
+
+
+def test_deal_support_thread_is_private_and_notifies_admin(loop, client, offers, monkeypatch):
+    token, aid = submitted_app(loop, client, 940021, 71)
+    monkeypatch.setattr(cfg, "admins", [999001])
+    status, body = post_json(loop, client, f"/api/v1/apps/{aid}/messages", token,
+                             {"body": "Уточните, пожалуйста, статус проверки."})
+    assert status == 201 and body["data"]["body"] == "Уточните, пожалуйста, статус проверки."
+    status, body = get_json(loop, client, f"/api/v1/apps/{aid}/messages", token)
+    assert status == 200 and len(body["data"]) == 1
+    assert body["data"][0]["is_admin"] is False
+
+    # A different user cannot read or write another person's deal thread.
+    other_token, _ = login(loop, client, 940022)
+    status, body = get_json(loop, client, f"/api/v1/apps/{aid}/messages", other_token)
+    assert status == 404
+    status, body = post_json(loop, client, f"/api/v1/apps/{aid}/messages", other_token,
+                             {"body": "Чужое сообщение"})
+    assert status == 404
+
+    # Empty and oversized messages are rejected.
+    status, body = post_json(loop, client, f"/api/v1/apps/{aid}/messages", token, {"body": "  "})
+    assert status == 400
+    status, body = post_json(loop, client, f"/api/v1/apps/{aid}/messages", token,
+                             {"body": "x" * 2001})
+    assert status == 400
+
+
+def test_deal_support_admin_reply_visible_to_user(loop, client, offers):
+    token, aid = submitted_app(loop, client, 940023, 72)
+
+    async def insert_reply():
+        async with Session() as s:
+            row = DealMessage(app_id=aid, actor_id=999001, is_admin=True,
+                              body="Проверяем подтверждение, ответим после сверки.")
+            s.add(row)
+            await s.commit()
+    loop.run_until_complete(insert_reply())
+
+    status, body = get_json(loop, client, f"/api/v1/apps/{aid}/messages", token)
+    assert status == 200
+    assert len(body["data"]) == 1
+    assert body["data"][0]["is_admin"] is True
+    assert body["data"][0]["body"].startswith("Проверяем подтверждение")

@@ -15,18 +15,25 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
     <Link
       to={`/offer/${offer.id}`}
       onClick={() => haptic("light")}
-      className="card-glass block overflow-hidden transition-transform active:scale-[0.98]"
+      className="offer-card card-glass group block overflow-hidden transition-all duration-200 active:scale-[0.98]"
     >
-      <div className="relative aspect-video w-full overflow-hidden bg-navy-800">
-        <img
-          src={offer.image_url}
-          alt={`${offer.brand} · ${offer.name}`}
-          loading="lazy"
-          decoding="async"
-          width={900}
-          height={520}
-          className="h-full w-full object-cover"
-        />
+      <div className="offer-art relative aspect-video w-full overflow-hidden bg-navy-800">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-[#17264d] via-[#101a38] to-[#101827] text-center">
+          <span className="text-3xl" aria-hidden="true">{offer.emoji || "✦"}</span>
+          <span className="max-w-[80%] truncate text-[11px] font-extrabold tracking-wide text-indigo-100/80">{offer.brand}</span>
+        </div>
+        {offer.image_url && (
+          <img
+            src={offer.image_url}
+            alt={`${offer.brand} · ${offer.name}`}
+            loading="lazy"
+            decoding="async"
+            width={900}
+            height={520}
+            onError={(event) => { event.currentTarget.style.opacity = "0"; }}
+            className="relative h-full w-full object-cover transition-opacity duration-300"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-navy-950/90 via-transparent to-transparent" />
         <span className="absolute left-3 top-3 rounded-full border border-royal/30 bg-navy-950/80 px-2.5 py-1 text-[12px] font-bold text-indigo-200 backdrop-blur">
           {CAT_LABEL[offer.category] ?? offer.category}

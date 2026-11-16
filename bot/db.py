@@ -253,3 +253,13 @@ class TmaSession(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     expires: Mapped[datetime] = mapped_column(DateTime)
+
+
+class DealMessage(Base):
+    __tablename__ = "deal_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    app_id: Mapped[int] = mapped_column(ForeignKey("apps.id"), index=True)
+    actor_id: Mapped[int] = mapped_column(BigInteger)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    body: Mapped[str] = mapped_column(Text)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

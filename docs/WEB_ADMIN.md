@@ -15,11 +15,11 @@ In `@BotFather`, run `/setdomain`, select the BONVERA bot, and set the exact pub
 
 - Overview and operational counters
 - User directory with search
-- Applications and payout queues
+- Applications with guarded manual confirmation, hold and reasoned rejection; payout queues with processing and manual paid confirmation
 - Offer list with guarded enable/disable
-- Broadcast campaign history
+- Broadcast composer with audience preview, explicit send confirmation, automatic Bonvera CTA button, background delivery and campaign history
 - Finance totals with an explicit distinction between network postbacks and cash actually received
 
-Offer activation requires a partner URL. Bookmaker offers additionally require `network_status=approved` and a recorded approval note. Payouts can be moved to processing and marked paid only after a separate browser confirmation; marking paid does not transfer money. The actual bank transfer remains manual.
+Offer activation requires a partner URL. Bookmaker offers additionally require `network_status=approved` and a recorded approval note. Payouts can be moved to processing and marked paid only after a separate browser confirmation; marking paid does not transfer money. The actual bank transfer remains manual. Web broadcasts currently support text messages up to Telegram’s 4096-character limit. Audience size is checked again at send time; if it changed after preview, sending is blocked until the admin previews again. Delivery progress is checkpointed in the campaign record; an interrupted worker is shown as interrupted rather than silently retried.
 
 Production deployment and database migrations are intentionally not performed by this implementation task.

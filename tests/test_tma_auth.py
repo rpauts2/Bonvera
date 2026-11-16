@@ -6,7 +6,7 @@ from urllib.parse import parse_qsl, urlencode
 import pytest
 
 from bot.config import cfg
-from bot.tma_auth import InitDataError, verify_init_data
+from bot.tma_auth import InitDataError, verify_init_data, verify_telegram_login
 from conftest import sign_init_data
 
 TOKEN = cfg.token
@@ -122,3 +122,36 @@ def test_signature_field_order_independent():
     reversed_qs = urlencode(list(reversed(pairs)))
     result = verify_init_data(reversed_qs, TOKEN)
     assert result["user"]["id"] == 777001
+
+def sign_widget(fields: dict, token: str = TOKEN) -> dict:
+    import hashlib, hmac
+    data = {k: str(v) for k, v in fields.items()}
+    check = "\n".join(f"{k}={data[k]}" for k in sorted(data))
+    secret = hashlib.sha256(token.encode()).digest()
+    data["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+    return data
+
+def test_valid_telegram_login_widget_signature_passes():
+    payload = sign_widget({"id": 777001, "first_name": "Test", "username": "testuser", "auth_date": int(time.time())})
+    verified = verify_telegram_login(payload, TOKEN)
+    assert verified["id"] == 777001
+    assert verified["username"] == "testuser"
+
+def test_telegram_login_widget_rejects_tampering():
+    payload = sign_widget({"id": 777001, "first_name": "Test", "auth_date": int(time.time())})
+    payload["id"] = "999999"
+    with pytest.raises(InitDataError) as exc:
+        verify_telegram_login(payload, TOKEN)
+    assert exc.value.code == "bad_signature"
+
+def test_telegram_login_widget_rejects_expired_payload():
+    payload = sign_widget({"id": 777001, "first_name": "Test", "auth_date": int(time.time()) - 90000})
+    with pytest.raises(InitDataError) as exc:
+        verify_telegram_login(payload, TOKEN)
+    assert exc.value.code == "expired"
+
+def test_telegram_login_widget_rejects_unknown_fields():
+    payload = sign_widget({"id": 777001, "first_name": "Test", "auth_date": int(time.time()), "is_admin": True})
+    with pytest.raises(InitDataError) as exc:
+        verify_telegram_login(payload, TOKEN)
+    assert exc.value.code == "unknown_field"

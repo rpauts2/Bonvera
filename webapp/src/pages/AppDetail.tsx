@@ -7,6 +7,8 @@ import { Icon } from "../components/Icon";
 import { ErrorState, ListSkeleton, PageHeader, SectionTitle, StatusBadge } from "../components/ui";
 import { haptic, hapticNotify, openExternal, showAlert, showConfirm } from "../lib/telegram";
 
+
+type DealMessage = { id: number; is_admin: boolean; body: string; created: string | null };
 const MAX_FILES = 10;
 const MAX_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
@@ -24,6 +26,9 @@ export default function AppDetail() {
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [messages, setMessages] = useState<DealMessage[]>([]);
+  const [messageText, setMessageText] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const previewUrls = useRef<Set<string>>(new Set());
 
@@ -33,6 +38,30 @@ export default function AppDetail() {
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
   }, []);
+
+  useEffect(() => {
+    if (!app) return;
+    let active = true;
+    api.get<DealMessage[]>("/apps/" + app.id + "/messages")
+      .then((items) => { if (active) setMessages(items); })
+      .catch(() => { if (active) setMessages([]); });
+    return () => { active = false; };
+  }, [app?.id]);
+
+  async function sendMessage() {
+    if (!app || !messageText.trim() || sendingMessage) return;
+    setSendingMessage(true);
+    try {
+      const created = await api.post<DealMessage>("/apps/" + app.id + "/messages", { body: messageText.trim() });
+      setMessages((prev) => [...prev, created]);
+      setMessageText("");
+      hapticNotify("success");
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось отправить сообщение.");
+    } finally {
+      setSendingMessage(false);
+    }
+  }
 
   function pickFiles(files: FileList | null) {
     if (!files) return;
@@ -329,6 +358,27 @@ export default function AppDetail() {
               </button>
             </section>
           )}
+
+
+          <SectionTitle>Поддержка по этой сделке</SectionTitle>
+          <section className="px-5">
+            <div className="card-glass space-y-3 p-4">
+              <p className="text-xs leading-relaxed text-indigo-200/60">Вопросы по условиям, проверке или выплате можно обсудить здесь. Ответ администратора появится в переписке и придёт в Telegram.</p>
+              {messages.length > 0 && <div className="max-h-72 space-y-2 overflow-y-auto">
+                {messages.map((msg) => <div key={msg.id} className={msg.is_admin ? "flex justify-start" : "flex justify-end"}>
+                  <div className={"max-w-[90%] rounded-2xl px-3 py-2 text-xs " + (msg.is_admin ? "bg-electric/10 text-indigo-100" : "bg-royal/20 text-indigo-100")}>
+                    <div className="mb-1 text-[10px] font-bold text-indigo-300/70">{msg.is_admin ? "Поддержка BONVERA" : "Вы"}</div>
+                    <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                    {msg.created && <div className="mt-1 text-[10px] text-indigo-300/40">{fmtDateTime(msg.created)}</div>}
+                  </div>
+                </div>)}
+              </div>}
+              <textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} maxLength={2000} rows={3} placeholder="Напишите сообщение по этой сделке…" className="w-full resize-y rounded-xl border border-royal/25 bg-navy-950/70 p-3 text-sm text-white placeholder:text-indigo-300/35 focus:border-electric focus:outline-none" />
+              <button className="btn-primary w-full" disabled={sendingMessage || !messageText.trim()} onClick={() => void sendMessage()}>
+                <Icon name="support" className="h-4 w-4" /> {sendingMessage ? "Отправляю…" : "Отправить в поддержку"}
+              </button>
+            </div>
+          </section>
 
           {app.events.length > 0 && (
             <>

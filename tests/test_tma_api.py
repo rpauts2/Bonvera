@@ -12,10 +12,10 @@ from types import SimpleNamespace
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from bot.config import cfg
-from bot.db import Session, TmaSession, User, init_db
+from bot.db import Bank, Offer, OfferEvent, PayoutEvent, PayoutReq, Session, TmaSession, User, init_db
 from bot.tma_auth import create_session, session_user_id, token_hash
 from bot.tma_api import api_limiter, auth_limiter, channel_limiter
 from bot.web import make_web
@@ -353,3 +353,76 @@ def test_health(loop, client):
 def test_spa_route_responds(loop, client):
     resp = loop.run_until_complete(client.get("/app"))
     assert resp.status in (200, 503)
+
+def sign_login_widget(payload, token=None):
+    import hashlib, hmac
+    from bot.config import cfg as app_cfg
+    values = {k: str(v) for k, v in payload.items()}
+    check = "\n".join(f"{k}={values[k]}" for k in sorted(values))
+    secret = hashlib.sha256((token or app_cfg.token).encode()).digest()
+    values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+    return values
+
+def test_admin_widget_login_only_allows_configured_admin(loop, client, monkeypatch):
+    from bot.config import cfg as app_cfg
+    from bot.tma_api import _BOT_USERNAME
+    monkeypatch.setattr(app_cfg, "admins", [919991])
+    monkeypatch.setattr("bot.tma_api._BOT_USERNAME", None)
+    redirect = loop.run_until_complete(client.get("/admin", allow_redirects=False))
+    assert redirect.status == 302 and redirect.headers["Location"] == "/app/admin/login"
+    status, body = get_json(loop, client, "/api/v1/admin/login-config")
+    assert status == 200 and body["data"]["bot_username"] == "bonvera_test_bot"
+    payload = sign_login_widget({"id": 919992, "first_name": "Not Admin", "auth_date": int(time.time())})
+    resp = loop.run_until_complete(client.post("/api/v1/auth/telegram-widget", json=payload))
+    assert resp.status == 403
+    payload = sign_login_widget({"id": 919991, "first_name": "Admin", "auth_date": int(time.time())})
+    resp = loop.run_until_complete(client.post("/api/v1/auth/telegram-widget", json=payload))
+    assert resp.status == 200, loop.run_until_complete(resp.text())
+    result = loop.run_until_complete(resp.json())["data"]
+    assert result["token"]
+    status, overview = get_json(loop, client, "/api/v1/admin/overview", result["token"])
+    assert status == 200 and "users_total" in overview["data"]
+    status, users = get_json(loop, client, "/api/v1/admin/section/users", result["token"])
+    assert status == 200 and users["data"]["section"] == "users"
+    assert any(row["id"] == 919991 for row in users["data"]["items"])
+    status, finance = get_json(loop, client, "/api/v1/admin/section/finance", result["token"])
+    assert status == 200 and "wallet_credits" in finance["data"]["items"]
+    for section in ("offers", "applications", "payouts", "broadcasts"):
+        section_status, section_body = get_json(loop, client, f"/api/v1/admin/section/{section}", result["token"])
+        assert section_status == 200 and section_body["data"]["section"] == section
+    status, denied = get_json(loop, client, "/api/v1/admin/section/users")
+    assert status == 401 and denied["err"]["code"] == "unauthorized"
+
+    async def seed_admin_controls():
+        async with Session() as session:
+            bank = Bank(slug="admin-test-bank", name="Test Bank", category="cards")
+            bookmaker = Bank(slug="admin-test-bk", name="Test BK", category="bk")
+            session.add_all([bank, bookmaker]); await session.flush()
+            offer = Offer(bank_id=bank.id, code="admin-test-card", name="Test card", url="https://partner.example/", enabled=False)
+            bk_offer = Offer(bank_id=bookmaker.id, code="admin-test-bk", name="Test bookmaker", url="https://partner.example/bk", enabled=False, network_status="needs_approval")
+            payout = PayoutReq(user_id=919991, amount=500, phone="", bank="Test", status="pending")
+            session.add_all([offer, bk_offer, payout]); await session.commit()
+            return offer.id, bk_offer.id, payout.id, bank.id, bookmaker.id
+    offer_id, bk_offer_id, payout_id, bank_id, bookmaker_id = loop.run_until_complete(seed_admin_controls())
+    resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{offer_id}/enabled", json={"enabled": True}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["enabled"] is True
+    resp = loop.run_until_complete(client.put(f"/api/v1/admin/offers/{bk_offer_id}/enabled", json={"enabled": True}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 409 and loop.run_until_complete(resp.json())["err"]["code"] == "bookmaker_not_approved"
+    resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_id}/action", json={"action":"take"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["status"] == "processing"
+    resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_id}/action", json={"action":"paid"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 200 and loop.run_until_complete(resp.json())["data"]["status"] == "paid"
+    resp = loop.run_until_complete(client.post(f"/api/v1/admin/payouts/{payout_id}/action", json={"action":"paid"}, headers={"Authorization": f"Bearer {result['token']}"}))
+    assert resp.status == 409
+
+    async def cleanup_admin_controls():
+        async with Session() as session:
+            await session.execute(delete(PayoutEvent).where(PayoutEvent.payout_id == payout_id))
+            await session.execute(delete(PayoutReq).where(PayoutReq.id == payout_id))
+            await session.execute(delete(OfferEvent).where(OfferEvent.offer_id.in_([offer_id, bk_offer_id])))
+            await session.execute(delete(Offer).where(Offer.id.in_([offer_id, bk_offer_id])))
+            await session.execute(delete(Bank).where(Bank.id.in_([bank_id, bookmaker_id])))
+            await session.execute(delete(TmaSession).where(TmaSession.user_id == 919991))
+            await session.execute(delete(User).where(User.id == 919991))
+            await session.commit()
+    loop.run_until_complete(cleanup_admin_controls())

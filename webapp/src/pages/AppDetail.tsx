@@ -181,6 +181,21 @@ export default function AppDetail() {
                 <StatusBadge status={app.status} />
                 <span className="text-[12px] text-indigo-300/70">от {fmtDateTime(app.created)}</span>
               </div>
+              {["new", "proof", "hold", "confirmed", "paid"].includes(app.status) && (() => {
+                const order = ["new", "proof", "hold", "paid"];
+                const idx = app.status === "confirmed" ? 3 : order.indexOf(app.status);
+                const labels = ["Оформлено", "Доказательства", "Проверка сети", "Выплата"];
+                return (
+                  <div className="mt-4 grid grid-cols-4 gap-1.5" aria-label="Этапы заявки">
+                    {labels.map((label, i) => (
+                      <div key={label} className="min-w-0">
+                        <div className={`h-1.5 rounded-full ${i <= idx ? "bg-electric" : "bg-white/10"}`} />
+                        <div className={`mt-1.5 truncate text-[10px] font-semibold ${i <= idx ? "text-electric" : "text-indigo-300/45"}`}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               {app.reason && (
                 <div className="mt-3 rounded-2xl border border-rose-alert/30 bg-rose-alert/10 p-3 text-xs leading-relaxed text-rose-alert">
                   {app.reason}

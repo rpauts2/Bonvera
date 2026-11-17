@@ -53,6 +53,14 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                 Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cashback-bot/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::cashback-bot-backups-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:aws:s3:::cashback-bot-backups-${AWS::AccountId}-${AWS::Region}/*"
       Tags:
         - Key: Project
           Value: cashback-bot
@@ -144,7 +152,33 @@ Resources:
 
           echo "bootstrap finished" > /var/log/cashback-bot-bootstrap.log
 
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "cashback-bot-backups-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-backups
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: Project
+          Value: cashback-bot
+
 Outputs:
+  BackupBucketName:
+    Description: Offsite backup bucket
+    Value: !Ref BackupBucket
+
   InstanceId:
     Description: EC2 instance id
     Value: !Ref BotInstance

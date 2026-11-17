@@ -18,9 +18,9 @@ from bot.db import Bank, Offer, Session, Tier
 
 SHARE = 0.70
 LABEL = "Вознаграждение пользователю: 70% выплаты сети"
-# The rate card from ProCPA lists "up to N RUB" - those are network payouts.
-# --as-cashback keeps the old reading where the numbers were already 70% values.
-LIST_IS_PAYOUT = "--as-cashback" not in __import__("sys").argv
+# The ProCPA rate card ("up to N RUB") already equals 70% of the network payout,
+# so it is stored as cashback and the payout is reconstructed as value / 0.7.
+LIST_IS_PAYOUT = "--as-payout" in __import__("sys").argv  # rate card is already 70% cashback
 
 # category -> brand -> cashback the user receives
 CASHBACK = {

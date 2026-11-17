@@ -15,9 +15,33 @@ WAIT = {"hold", "pending", "0"}
 def make_web(bot):
     async def pb(req):
         q = req.query
+        if req.method == "POST":
+            # CPA networks differ: some send JSON, some form-encoded, some put
+            # everything in the query string of a POST. Accept all three; the
+            # query string stays authoritative when a key appears in both.
+            data = {}
+            try:
+                if "application/json" in req.headers.get("Content-Type", ""):
+                    payload = await req.json()
+                    if isinstance(payload, dict):
+                        data = {str(k): str(v) for k, v in payload.items() if v is not None}
+                else:
+                    form = await req.post()
+                    data = {str(k): str(v) for k, v in form.items()}
+                    if not data:
+                        body = await req.text()
+                        if body and "=" in body:
+                            from urllib.parse import parse_qsl
+                            data = dict(parse_qsl(body, keep_blank_values=True))
+            except Exception:
+                data = {}
+            if data:
+                q = {**data, **dict(req.query)}
         supplied = q.get("secret", "")
         if not hmac.compare_digest(supplied, cfg.pb_secret): return web.json_response({"ok": False, "err": "auth"}, status=403)
-        sid, st = q.get("subid", ""), q.get("status", "").lower()
+        # ProCPA and many other networks put the deal reference in sub1.
+        sid = q.get("subid") or q.get("sub1") or ""
+        st = (q.get("status") or "").lower()
         try: payout = int(float(q.get("payout", 0) or 0))
         except (ValueError, TypeError): payout = 0
         if payout < 0: return web.json_response({"ok": False, "err": "payout"}, status=400)
@@ -97,6 +121,8 @@ def make_web(bot):
         return web.json_response({"ok": True})
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/postback", pb)
+    # Same handler: ProCPA and most CPA networks default to POST callbacks.
+    app.router.add_post("/postback", pb)
     async def health(req):
         from bot.monitoring import check_db, health_payload
         payload = health_payload()

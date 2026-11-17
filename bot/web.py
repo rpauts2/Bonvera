@@ -15,6 +15,8 @@ WAIT = {"hold", "pending", "0"}
 def make_web(bot):
     async def pb(req):
         q = req.query
+        logging.info("postback hit: method=%s keys=%s", req.method,
+                     ",".join(sorted(k for k in q.keys() if k != "secret")))
         if req.method == "POST":
             # CPA networks differ: some send JSON, some form-encoded, some put
             # everything in the query string of a POST. Accept all three; the
@@ -38,7 +40,9 @@ def make_web(bot):
             if data:
                 q = {**data, **dict(req.query)}
         supplied = q.get("secret", "")
-        if not hmac.compare_digest(supplied, cfg.pb_secret): return web.json_response({"ok": False, "err": "auth"}, status=403)
+        if not hmac.compare_digest(supplied, cfg.pb_secret):
+            logging.warning("postback auth failed: got %d chars, expected %d", len(supplied), len(cfg.pb_secret))
+            return web.json_response({"ok": False, "err": "auth"}, status=403)
         # ProCPA and many other networks put the deal reference in sub1.
         sid = q.get("subid") or q.get("sub1") or ""
         st = (q.get("status") or "").lower()

@@ -486,7 +486,49 @@ async def app_proofs_upload(request):
         s.add(DealEvent(app_id=a.id, actor_id=uid, event="proof_uploaded", from_status=old_status, to_status=a.status,
                         comment=f"Загружено через Mini App: {labels}"))
         await s.commit()
+
+        # One less step for the user: a complete package goes straight to review.
+        complete_now, _missing_now = proofs_complete(a, o, require_submission=False)
+        if complete_now:
+            ver2 = dict(a.verification or {})
+            if not ver2.get("proof_submitted_at"):
+                ver2["proof_submitted_at"] = datetime.utcnow().isoformat()
+                ver2.pop("more_info_requested_at", None)
+                ver2.pop("more_info_text", None)
+                a.verification = ver2
+                s.add(DealEvent(app_id=a.id, actor_id=uid, event="proof_submitted", from_status=a.status,
+                                to_status=a.status, comment="Комплект собран и автоматически отправлен на проверку"))
+                await s.commit()
+                await _notify_admins_new_proof(request, a, o, items)
         return ok(await services.app_detail(s, a))
+
+
+async def _notify_admins_new_proof(request, app_row, offer, items):
+    """Send the uploaded evidence itself to every admin chat."""
+    from aiogram.types import FSInputFile
+    from bot.tma_files import resolve_proof
+    bot = request.app.get(BOT_KEY)
+    if bot is None:
+        return
+    name = (app_row.offer_snapshot or {}).get("name") or (offer.name if offer else "")
+    caption = (f"📥 <b>Новые доказательства</b>\nСделка #{app_row.id} · {name}\n"
+               f"Пользователь: ID {app_row.user_id}\nОткрой админ-меню → «📥 Скрины».")
+    for admin_id in cfg.admins:
+        try:
+            await bot.send_message(admin_id, caption)
+        except Exception:
+            continue
+        for item in items[:3]:
+            try:
+                if not isinstance(item, dict) or not item.get("storage"):
+                    continue
+                path = resolve_proof(item["storage"])
+                if item.get("kind") == "document":
+                    await bot.send_document(admin_id, FSInputFile(path))
+                else:
+                    await bot.send_photo(admin_id, FSInputFile(path))
+            except Exception:
+                continue
 
 
 async def app_proof_file(request):

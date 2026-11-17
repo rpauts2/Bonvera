@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Bonvera database backup every night
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+AccuracySec=1min
+Unit=bonvera-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Bonvera nightly database backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cashback-bot/deploy/scripts/backup-db.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

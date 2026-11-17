@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { api, fmtDateTime, rub } from "../lib/api";
 import type { Dashboard } from "../lib/types";
 import { useSession } from "../state/session";
@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { OfferCard } from "../components/OfferCard";
 import { ErrorState, ProgressBar, SectionTitle } from "../components/ui";
 import { haptic, hapticNotify, openExternal, showAlert } from "../lib/telegram";
+import { isOnboarded } from "../lib/onboarding";
 
 /**
  * The home screen.
@@ -17,6 +18,9 @@ import { haptic, hapticNotify, openExternal, showAlert } from "../lib/telegram";
  */
 export default function Home({ initialData }: { initialData?: Dashboard } = {}) {
   const { user } = useSession();
+  // Флаг читаем один раз при монтировании: редирект не должен зависеть от
+  // повторных рендеров и дёргать localStorage на каждый из них.
+  const [needsOnboarding] = useState(() => !isOnboarded());
   const [data, setData] = useState<Dashboard | null>(initialData ?? null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -45,6 +49,10 @@ export default function Home({ initialData }: { initialData?: Dashboard } = {}) 
       showAlert("Скопируй ссылку вручную: " + data.ref_link);
     }
   }
+
+  // Первый запуск — сначала онбординг. Проверка стоит после всех хуков и
+  // выше любых условных return, поэтому порядок вызовов остаётся стабильным.
+  if (needsOnboarding) return <Navigate to="/welcome" replace />;
 
   const wallet = data?.wallet;
   const available = wallet?.available ?? 0;

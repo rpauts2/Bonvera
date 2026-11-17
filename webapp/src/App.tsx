@@ -6,6 +6,7 @@ import { AcceptGate, BootScreen, ErrorScreen } from "./components/Gates";
 import { BackButtonSync } from "./components/BackButtonSync";
 
 const Home = lazy(() => import("./pages/Home"));
+const Welcome = lazy(() => import("./pages/Welcome"));
 const Tasks = lazy(() => import("./pages/Tasks"));
 const Catalog = lazy(() => import("./pages/Catalog"));
 const Friends = lazy(() => import("./pages/Friends"));
@@ -48,6 +49,7 @@ function Shell() {
           <Routes>
             <Route path="/admin" element={<Admin />} />
             <Route path="/" element={<Home />} />
+            <Route path="/welcome" element={<Welcome />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/friends" element={<Friends />} />

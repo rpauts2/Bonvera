@@ -1,7 +1,9 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-MENU = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🆘 Поддержка")]], resize_keyboard=True)
+# Legacy reply keyboard is gone: the client keeps it until we explicitly remove it,
+# so /start always sends ReplyKeyboardRemove instead of another keyboard.
+MENU = ReplyKeyboardRemove()
 
 def ik(*rows):
     return InlineKeyboardMarkup(inline_keyboard=[

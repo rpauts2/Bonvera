@@ -560,6 +560,12 @@ async def friends(m: Message, bot: Bot):
                    f"Друг получает столько же, сколько все — ему ничего не урезается.",
                  reply_markup=ik_url("📤 Поделиться", share), disable_web_page_preview=True)
 
+@r.message(Command("support"))
+async def support_cmd(m: Message, state: FSMContext):
+    await state.set_state(St.sup)
+    await m.answer("Опиши вопрос одним сообщением — ответим здесь.")
+
+
 @r.message(F.text == "🆘 Поддержка")
 async def sup(m: Message, state: FSMContext):
     await state.set_state(St.sup); await m.answer("Опиши вопрос одним сообщением — ответим здесь.")

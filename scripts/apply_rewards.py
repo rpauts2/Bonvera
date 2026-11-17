@@ -18,6 +18,9 @@ from bot.db import Bank, Offer, Session, Tier
 
 SHARE = 0.70
 LABEL = "Вознаграждение пользователю: 70% выплаты сети"
+# The rate card from ProCPA lists "up to N RUB" - those are network payouts.
+# --as-cashback keeps the old reading where the numbers were already 70% values.
+LIST_IS_PAYOUT = "--as-cashback" not in __import__("sys").argv
 
 # category -> brand -> cashback the user receives
 CASHBACK = {
@@ -87,7 +90,11 @@ async def main() -> None:
             tiers = (await s.execute(select(Tier).where(Tier.offer_id == offer.id).order_by(Tier.id))).scalars().all()
             cashback = lookup(bank.name, bank.category, offer.kind or "")
             if cashback is not None:
-                payout = payout_from_cashback(cashback)
+                if LIST_IS_PAYOUT:
+                    payout = cashback
+                    cashback = int(round(payout * SHARE / 10.0) * 10)
+                else:
+                    payout = payout_from_cashback(cashback)
                 stats["list"] += 1
                 if dry:
                     print(f"LIST   {bank.category:6} {bank.name:24} cb={cashback:6} payout={payout}")

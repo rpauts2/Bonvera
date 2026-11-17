@@ -825,6 +825,9 @@ async def admin_section(request):
         elif section == "audit":
             rows = (await s.execute(select(AdminAuditEvent).order_by(AdminAuditEvent.created.desc(), AdminAuditEvent.id.desc()).limit(300))).scalars().all()
             data = [{"id": e.id, "actor_id": e.actor_id, "action": e.action, "target_type": e.target_type, "target_id": e.target_id, "details": e.details, "created": e.created.isoformat() if e.created else None} for e in rows]
+        elif section == "postbacks":
+            rows = (await s.execute(select(PbLog).order_by(PbLog.id.desc()).limit(200))).scalars().all()
+            data = [{"id": p.id, "subid": p.subid, "status": p.status, "payout": p.payout, "raw": p.raw} for p in rows]
         elif section == "finance":
             credits = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
             debits = int((await s.execute(select(func.coalesce(func.sum(-WalletEntry.amount), 0)).where(WalletEntry.amount < 0))).scalar() or 0)
@@ -1106,6 +1109,78 @@ async def admin_offer_enabled(request):
         return ok({"id": offer.id, "enabled": offer.enabled})
 
 
+async def admin_offer_create(request):
+    """Create an offer with a partner link and a rate straight from the panel."""
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_request", "Некорректный запрос.")
+    if not isinstance(body, dict):
+        return err("bad_json", "Некорректный запрос.")
+
+    name = str(body.get("name") or "").strip()
+    bank_name = str(body.get("bank") or "").strip()
+    category = str(body.get("category") or "cpl").strip()
+    url = str(body.get("url") or "").strip()
+    condition = str(body.get("condition") or "").strip()
+    kind = str(body.get("kind") or "").strip()
+    raw_code = str(body.get("code") or "").strip().lower()
+
+    if not name or len(name) > 160:
+        return err("bad_field", "Название оффера обязательно, до 160 символов.")
+    if not bank_name or len(bank_name) > 80:
+        return err("bad_field", "Название партнёра обязательно, до 80 символов.")
+    if category not in ("cards", "bk", "mfo", "cpl"):
+        return err("bad_field", "Неизвестная категория.")
+    if url and not url.startswith(("https://", "http://")):
+        return err("bad_url", "Партнёрская ссылка должна начинаться с http:// или https://.")
+    try:
+        rate = int(body.get("rate") or 0)
+        hold = int(body.get("hold") or 30)
+    except (TypeError, ValueError):
+        return err("bad_field", "Ставка и холд должны быть целыми числами.")
+    if not 0 <= rate <= 100000000:
+        return err("bad_field", "Ставка вне диапазона.")
+    if not 0 <= hold <= 365:
+        return err("bad_field", "Холд вне диапазона.")
+
+    code = raw_code or "".join(ch if (ch.isalnum() or ch in "-_") else "-" for ch in name.lower()).strip("-")[:40]
+    if not code or len(code) > 60 or not all(ch.isalnum() or ch in "-_" for ch in code) or not code.isascii():
+        return err("bad_field", "Код оффера: латиница, цифры, дефис и подчёркивание (до 60 символов).")
+    if category == "cards" and kind not in ("debit", "credit"):
+        kind = "credit" if "кредит" in name.lower() else "debit"
+
+    async with Session() as s:
+        if (await s.execute(select(Offer).where(Offer.code == code))).scalar_one_or_none():
+            return err("duplicate_code", f"Оффер с кодом {code} уже существует.", 409)
+        bank = (await s.execute(select(Bank).where(Bank.slug == code))).scalar_one_or_none()
+        if bank is None:
+            emoji = {"cards": "\U0001F4B3", "bk": "\u26bd", "mfo": "\U0001F3E6", "cpl": "\U0001F4DD"}[category]
+            bank = Bank(slug=code, name=bank_name, emoji=emoji, category=category, sort=900)
+            s.add(bank)
+            await s.flush()
+
+        offer = Offer(code=code, bank_id=bank.id, name=name)
+        s.add(offer)
+        await s.flush()
+        offer.url = url
+        offer.link_param = "sub1"
+        offer.network_status = "approved"
+        offer.enabled = True
+        offer.hold = hold
+        offer.kind = kind
+        if condition:
+            offer.condition_text = condition
+            offer.action = condition
+        s.add(Tier(offer_id=offer.id, payout=rate, cashback=rate, label="Ставка ProCPA"))
+        s.add(AdminAuditEvent(actor_id=request["uid"], action="offer_created", target_type="offer",
+                              target_id=offer.id, details=f"{name} / {code} / {category} / {rate}"))
+        await s.commit()
+        return ok({"id": offer.id, "code": code}, status=201)
+
+
 async def admin_offer_update(request):
     if request["uid"] not in cfg.admins:
         return err("forbidden", "Нет доступа.", 403)
@@ -1281,6 +1356,7 @@ def setup_tma(app: web.Application, bot):
     r.add_post("/api/v1/admin/broadcasts/send", admin_broadcast_send)
     r.add_put("/api/v1/admin/offers/{id}/enabled", admin_offer_enabled)
     r.add_put("/api/v1/admin/offers/{id}", admin_offer_update)
+    r.add_post("/api/v1/admin/offers", admin_offer_create)
     r.add_post("/api/v1/admin/payouts/{id}/action", admin_payout_action)
     r.add_post("/api/v1/me/accept", me_accept)
     r.add_put("/api/v1/me/age", me_age)

@@ -1,0 +1,12 @@
+[Unit]
+Description=Bonvera weekly restore drill (scratch DB, verify, drop)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cashback-bot/deploy/scripts/restore-test.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=1800

@@ -930,18 +930,29 @@ async def ban(m: Message):
 async def stats_cmd(m: Message):
     if m.from_user.id not in cfg.admins:
         return
+    week_ago = datetime.utcnow() - timedelta(days=7)
     async with Session() as s:
         users = int((await s.execute(select(func.count(User.id)))).scalar() or 0)
         offers_on = int((await s.execute(select(func.count(Offer.id)).where(Offer.enabled == True))).scalar() or 0)
         offers_all = int((await s.execute(select(func.count(Offer.id)))).scalar() or 0)
+        no_link = int((await s.execute(select(func.count(Offer.id)).where(
+            func.trim(func.coalesce(Offer.url, "")) == ""))).scalar() or 0)
         by_status = dict((await s.execute(select(App.status, func.count(App.id)).group_by(App.status))).all())
+        apps7 = int((await s.execute(select(func.count(App.id)).where(App.created >= week_ago))).scalar() or 0)
+        done7 = int((await s.execute(select(func.count(App.id)).where(App.created >= week_ago,
+            App.status.in_([CONFIRMED, PAID])))).scalar() or 0)
+        users7 = int((await s.execute(select(func.count(User.id)).where(User.created >= week_ago))).scalar() or 0)
+        avg_check = int(round(float((await s.execute(select(func.avg(App.cashback)).where(
+            App.status.in_([CONFIRMED, PAID])))).scalar() or 0)))
         pending = int((await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(
             PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0)
         postbacks = int((await s.execute(select(func.count(PbLog.id)))).scalar() or 0)
     apps_total = sum(by_status.values())
-    lines = [f"👥 Пользователи: <b>{users}</b>",
-             f"🎯 Офферы: <b>{offers_on}</b> из {offers_all} активны",
-             f"📋 Заявки: <b>{apps_total}</b>",
+    conv7 = round(done7 * 100 / apps7, 1) if apps7 else 0
+    lines = [f"👥 Пользователи: <b>{users}</b> · новых за 7 дней: +{users7}",
+             f"🎯 Офферы: <b>{offers_on}</b> из {offers_all} активны · без ссылки: <b>{no_link}</b>",
+             f"📋 Заявки: <b>{apps_total}</b> · за 7 дней: {apps7} (подтверждено {done7} · {conv7}%)",
+             f"🧮 Средний чек подтверждённой сделки: <b>{avg_check} ₽</b>",
              f"💰 К выплате: <b>{pending} ₽</b>",
              f"📡 Postback-логов: {postbacks}"]
     for status, count in sorted(by_status.items(), key=lambda kv: -kv[1]):
@@ -963,7 +974,9 @@ async def deal_cmd(m: Message):
         if a is None:
             await m.answer(f"Заявка #{app_id} не найдена")
             return
-        offer_name = (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}")
+        offer = await s.get(Offer, a.offer_id)
+        offer_name = (a.offer_snapshot or {}).get("name", offer.name if offer else f"Оффер #{a.offer_id}")
+        offer_url = (offer.url if offer else "") or ""
         events = (await s.execute(select(DealEvent).where(DealEvent.app_id == app_id)
                                   .order_by(DealEvent.id.desc()).limit(5))).scalars().all()
     text = (f"🧾 <b>Заявка #{a.id}</b>\n\n"
@@ -972,7 +985,11 @@ async def deal_cmd(m: Message):
             f"Статус: <b>{a.status}</b>\n"
             f"Кэшбэк: {int(a.cashback or 0)} ₽ · выплата сети: {int(a.payout or 0)} ₽\n"
             f"Создана: {a.created:%d.%m.%Y %H:%M}\n"
-            f"Холд до: {a.hold_until:%d.%m.%Y}" if a.hold_until else f"Создана: {a.created:%d.%m.%Y %H:%M}")
+            f"subid: <code>{a.subid or '—'}</code>\n"
+            f"Ссылка: {offer_url or '⚠️ не задана'}")
+    if a.hold_until:
+        text += f"\nХолд до: {a.hold_until:%d.%m.%Y}"
+    text += "\n\nЕсли postback не пришёл — проверь subid в ProCPA"
     if events:
-        text += "\n\n<b>Последние события</b>\n" + "\n".join(f"• {e.event}: {e.comment[:80]}" for e in events)
+        text += "\n\n<b>Последние события</b>\n" + "\n".join(f"• {e.event}: {(e.comment or '')[:80]}" for e in events)
     await m.answer(text)

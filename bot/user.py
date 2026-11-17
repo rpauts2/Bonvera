@@ -34,8 +34,7 @@ async def send_webapp_button(m: Message):
     # A reply-keyboard web_app button would open the app with EMPTY initData.
     if not cfg.webapp_url:
         return
-    kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="📱 Открыть BONVERA", web_app=WebAppInfo(url=cfg.webapp_url))]])
+    kb = start_kb(m.from_user.id)
     await m.answer("📱 <b>Приложение BONVERA</b> — каталог, заявки, кошелёк и бонусы:", reply_markup=kb)
 
 @r.message(CommandStart())
@@ -594,23 +593,24 @@ STATUS_RU = {"new": "Новая", "proof": "На проверке", "hold": "Х�
              "paid": "Выплачена", "rejected": "Отклонена", "expired": "Истекла"}
 
 
-def start_kb():
+def start_kb(uid: int):
+    """Regular users get one call to action; admins also get the panel button."""
     rows = []
     if cfg.webapp_url:
         rows.append([InlineKeyboardButton(text="📱 Открыть BONVERA", web_app=WebAppInfo(url=cfg.webapp_url))])
-    rows.append([InlineKeyboardButton(text="❓ Как это работает", callback_data="howto"),
-                 InlineKeyboardButton(text="💰 Баланс", callback_data="quickbal")])
+    if uid in cfg.admins:
+        rows.append([InlineKeyboardButton(text="🛠 Админ-меню", callback_data="adm:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 @r.message(Command("help"))
 async def help_cmd(m: Message):
-    await m.answer(START_PITCH, reply_markup=start_kb())
+    await m.answer(START_PITCH, reply_markup=start_kb(m.from_user.id))
 
 
 @r.callback_query(F.data == "howto")
 async def howto_cb(c: CallbackQuery):
-    await c.message.answer(START_PITCH, reply_markup=start_kb())
+    await c.message.answer(START_PITCH, reply_markup=start_kb(c.from_user.id))
     await c.answer()
 
 
@@ -634,7 +634,7 @@ async def balance_text(uid: int) -> str:
 
 @r.message(Command("balance"))
 async def balance_cmd(m: Message):
-    await m.answer(await balance_text(m.from_user.id), reply_markup=start_kb())
+    await m.answer(await balance_text(m.from_user.id), reply_markup=start_kb(m.from_user.id))
 
 
 @r.callback_query(F.data == "quickbal")
@@ -649,10 +649,10 @@ async def deals_cmd(m: Message):
         rows = (await s.execute(select(App).where(App.user_id == m.from_user.id)
                                 .order_by(App.created.desc()).limit(5))).scalars().all()
     if not rows:
-        await m.answer("Заявок пока нет. Выбери предложение в приложении 👇", reply_markup=start_kb())
+        await m.answer("Заявок пока нет. Выбери предложение в приложении 👇", reply_markup=start_kb(m.from_user.id))
         return
     lines = []
     for a in rows:
         lines.append(f"#{a.id} · {STATUS_RU.get(a.status, a.status)} · {int(a.cashback or 0)} ₽")
     await m.answer("📋 <b>Последние заявки</b>\n\n" + "\n".join(lines) +
-                   "\n\nПодробности и доказательства — в приложении.", reply_markup=start_kb())
+                   "\n\nПодробности и доказательства — в приложении.", reply_markup=start_kb(m.from_user.id))

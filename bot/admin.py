@@ -93,9 +93,7 @@ async def export_evidence(m: Message, bot: Bot | None = None):
     )
 
 
-@r.message(Command("admin"))
-async def panel(m: Message):
-    if not adm(m.from_user.id): return
+async def send_admin_menu(target: Message):
     keyboard = ik(
         [("📥 Скрины", "adm:q"), ("⏳ Холды", "adm:h")],
         [("💸 Запросы на вывод", "adm:p"), ("📚 История выплат", "adm:phistory")],
@@ -107,7 +105,22 @@ async def panel(m: Message):
         base = cfg.webapp_url.rstrip("/")
         admin_url = f"{base}/admin/login" if base.endswith("/app") else f"{base}/app/admin/login"
         keyboard.inline_keyboard.insert(0, [InlineKeyboardButton(text="🌐 Открыть веб-админку", url=admin_url)])
-    await m.answer("🛠 <b>Админка</b>", reply_markup=keyboard)
+    await target.answer("🛠 <b>Админка</b>", reply_markup=keyboard)
+
+
+@r.message(Command("admin"))
+async def panel(m: Message):
+    if not adm(m.from_user.id): return
+    await send_admin_menu(m)
+
+
+@r.callback_query(F.data == "adm:menu")
+async def admin_menu_cb(c: CallbackQuery):
+    if not adm(c.from_user.id):
+        await c.answer("Нет доступа", show_alert=True)
+        return
+    await send_admin_menu(c.message)
+    await c.answer()
 
 @r.callback_query(F.data == "adm:q")
 async def q(c: CallbackQuery, bot: Bot):

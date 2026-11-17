@@ -347,8 +347,18 @@ async def offer_take(request):
         return err("not_found", "Предложение не найдено.", 404)
     async with Session() as s:
         a, code, msg = await services.create_deal(s, request["uid"], oid)
-    if a is None:
-        return err(code, msg, TAKE_ERROR_STATUS.get(code, 400))
+        if a is None:
+            return err(code, msg, TAKE_ERROR_STATUS.get(code, 400))
+        offer_name = (a.offer_snapshot or {}).get("name") or f"Оффер #{a.offer_id}"
+        reward = int(a.cashback or 0)
+    bot = request.app.get(BOT_KEY)
+    if bot is not None:
+        for admin_id in cfg.admins:
+            try:
+                await bot.send_message(admin_id, f"🆕 <b>Новая заявка #{a.id}</b>\n{offer_name}\n" 
+                                               f"Пользователь: <code>{a.user_id}</code> · {reward} ₽")
+            except Exception:
+                continue
     return ok({"app_id": a.id}, status=201)
 
 

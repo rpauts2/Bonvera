@@ -192,5 +192,31 @@ def make_scheduler(bot):
     sch.add_job(remind, "interval", minutes=60)
     sch.add_job(hold_check, "interval", minutes=15)
     sch.add_job(evidence_purge, "interval", hours=24, id="evidence_purge", jitter=3600)
+    async def network_silence():
+        """Deals waiting for the network longer than a day mean the postback is broken."""
+        from bot.db import App, PbLog, Session
+        async with Session() as s:
+            stuck = (await s.execute(
+                select(App).where(App.status.in_([PROOF, HOLD]),
+                                  App.created < datetime.utcnow() - timedelta(hours=24))
+            )).scalars().all()
+            if not stuck:
+                return
+            subids = [a.subid for a in stuck if a.subid]
+            seen = set()
+            if subids:
+                seen = {row[0] for row in (await s.execute(select(PbLog.subid).where(PbLog.subid.in_(subids)))).all()}
+            silent = [a for a in stuck if a.subid not in seen]
+        if not silent:
+            return
+        text = (f"📡 <b>Сеть молчит</b>\n{len(silent)} заявок ждут подтверждения больше 24 ч "
+                f"и ни по одной не было postback.\nПроверь настройку отправки в ProCPA.")
+        for admin_id in cfg.admins:
+            try:
+                await bot.send_message(admin_id, text)
+            except Exception:
+                continue
+    sch.add_job(network_silence, "interval", hours=6, id="network_silence")
+
     sch.add_job(watchdog, "interval", minutes=max(1, cfg.health_interval_min), id="watchdog", args=[bot])
     return sch

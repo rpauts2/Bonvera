@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Bonvera restore drill every Sunday
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00 UTC
+Persistent=true
+AccuracySec=1min
+Unit=bonvera-restore-test.service
+
+[Install]
+WantedBy=timers.target

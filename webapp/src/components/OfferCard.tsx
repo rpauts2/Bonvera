@@ -85,7 +85,7 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
             className="absolute right-3 top-3 z-[3] max-w-[60%] truncate rounded-full border border-gold/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur"
             title={offer.unavailable_reason ?? undefined}
           >
-            {offer.has_partner_link ? "Скоро" : "Готовится"}
+            {offer.has_partner_link ? "Скоро" : "Нет ссылки"}
           </span>
         )}
       </div>

@@ -88,7 +88,9 @@ async def seed(path="catalog.yaml"):
         # Retain legacy records for existing deal history, but remove them from the public catalog.
         legacy = (await s.execute(select(Offer))).scalars().all()
         for old_offer in legacy:
-            if old_offer.code not in known_codes:
+            # Offers imported outside catalog.yaml (ProCPA) stay live as long as they
+            # carry a partner link; only linkless leftovers are hidden.
+            if old_offer.code not in known_codes and not old_offer.url:
                 old_offer.enabled = False
         if state is None:
             s.add(CatalogState(key="cashback_catalog_version", value=CATALOG_VERSION))

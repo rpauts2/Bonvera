@@ -98,7 +98,8 @@ counts=$( cd "$APP_DIR" && docker compose exec -T db psql -U "$DB_USER" -d "$RES
     2>&1 ) || die "schema unreadable in $RESTORE_DB: $counts"
 
 IFS='|' read -r n_users n_offers n_apps n_alembic <<< "$counts"
-for pair in "users:$n_users" "offers:$n_offers" "apps:$n_apps" "alembic_version:$n_alembic"; do
+# apps may legitimately be empty right after launch, so it is reported but not enforced.
+for pair in "users:$n_users" "offers:$n_offers" "alembic_version:$n_alembic"; do
   name="${pair%%:*}"
   value="${pair##*:}"
   case "$value" in

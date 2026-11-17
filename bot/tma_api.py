@@ -886,6 +886,31 @@ async def admin_section(request):
             paid = int((await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar() or 0)
             network = int((await s.execute(select(func.coalesce(func.sum(PbLog.payout), 0)))).scalar() or 0)
             data = {"wallet_credits": credits, "wallet_debits": debits, "paid_to_users": paid, "network_postback_total": network, "note": "Postback — учётная сумма сети, не подтверждение фактического поступления денег."}
+        elif section == "metrics":
+            from sqlalchemy import Date, case, cast
+            now = datetime.utcnow()
+            week_ago = now - timedelta(days=7)
+            day_start = (now - timedelta(days=13)).replace(hour=0, minute=0, second=0, microsecond=0)
+            users_total = int((await s.execute(select(func.count()).select_from(User))).scalar() or 0)
+            users_accepted = int((await s.execute(select(func.count()).select_from(User).where(User.accepted.is_(True)))).scalar() or 0)
+            apps_total = int((await s.execute(select(func.count()).select_from(App))).scalar() or 0)
+            apps_new = int((await s.execute(select(func.count()).select_from(App).where(App.created >= week_ago))).scalar() or 0)
+            apps_confirmed = int((await s.execute(select(func.count()).select_from(App).where(App.created >= week_ago, App.status == "confirmed"))).scalar() or 0)
+            apps_paid = int((await s.execute(select(func.count()).select_from(App).where(App.created >= week_ago, App.status == "paid"))).scalar() or 0)
+            wallet_credited = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
+            paid_to_users = int((await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(PayoutReq.status == "paid"))).scalar() or 0)
+            conversion_pct = round((apps_confirmed + apps_paid) / apps_new * 100, 1) if apps_new else 0
+            day_col = cast(App.created, Date)
+            agg_rows = (await s.execute(select(day_col.label("day"), func.count().label("apps"), func.sum(case((App.status.in_(("confirmed", "paid")), 1), else_=0)).label("confirmed")).where(App.created >= day_start).group_by(day_col))).all()
+            by_day = {}
+            for day, day_apps, day_confirmed in agg_rows:
+                by_day[str(day)[:10]] = (int(day_apps or 0), int(day_confirmed or 0))
+            daily = []
+            for offset in range(13, -1, -1):
+                key = (now - timedelta(days=offset)).date().isoformat()
+                day_apps, day_confirmed = by_day.get(key, (0, 0))
+                daily.append({"date": key, "apps": day_apps, "confirmed": day_confirmed})
+            data = {"users_total": users_total, "users_accepted": users_accepted, "apps_total": apps_total, "apps_new": apps_new, "apps_confirmed_7d": apps_confirmed, "apps_paid_7d": apps_paid, "conversion_pct": conversion_pct, "wallet_credited": wallet_credited, "paid_to_users": paid_to_users, "daily": daily, "note": "Окно 7 дней — заявки по дате создания. Конверсия = подтверждённые и выплаченные / новые."}
         else:
             return err("not_found", "Раздел не найден.", 404)
     return ok({"section": section, "items": data})

@@ -1176,7 +1176,7 @@ async def admin_offer_create(request):
             offer.action = condition
         s.add(Tier(offer_id=offer.id, payout=rate, cashback=rate, label="Ставка ProCPA"))
         s.add(AdminAuditEvent(actor_id=request["uid"], action="offer_created", target_type="offer",
-                              target_id=offer.id, details=f"{name} / {code} / {category} / {rate}"))
+                              target_id=str(offer.id), details=f"{name} / {code} / {category} / {rate}"))
         await s.commit()
         return ok({"id": offer.id, "code": code}, status=201)
 

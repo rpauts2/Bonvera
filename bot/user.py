@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from aiogram import Router, F, Bot
-from aiogram.filters import CommandStart, CommandObject
+from aiogram.filters import CommandStart, CommandObject, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, FSInputFile, WebAppInfo
+from aiogram.types import Message, CallbackQuery, FSInputFile, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from pathlib import Path
 from io import BytesIO
 import imagehash
@@ -51,7 +51,7 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
             except ValueError: pass
         if not u.accepted:
             return await m.answer(WELCOME, reply_markup=ik([("✅ Принимаю, мне 18+", "accept")]))
-    await m.answer("Главное меню 👇", reply_markup=MENU)
+    await m.answer(START_PITCH, reply_markup=MENU)
     await send_webapp_button(m)
 
 @r.callback_query(F.data == "accept")
@@ -576,3 +576,83 @@ async def sup_got(m: Message, state: FSMContext, bot: Bot):
 
 @r.message(F.text == "/how")
 async def how(m: Message): await m.answer(HOW)
+
+START_PITCH = (
+    "🏆 <b>BONVERA</b> — кэшбэк за то, что ты и так оформляешь\n\n"
+    "💳 Карты · ⚽ Букмекеры · 🏦 Займы · 📝 Заявки\n"
+    "💸 Вознаграждение до 3 640 ₽ за одно предложение\n\n"
+    "<b>Как это работает</b>\n"
+    "1️⃣ Выбираешь предложение в приложении\n"
+    "2️⃣ Оформляешь по нашей ссылке\n"
+    "3️⃣ Загружаешь подтверждение\n"
+    "4️⃣ Получаешь деньги на кошелёк\n\n"
+    "⏳ Выплата после подтверждения партнёра: 14–60 дней\n"
+    "💳 Покупки и депозиты — твоими деньгами. Мы не даём денег на оформление и не просим вложений"
+)
+
+STATUS_RU = {"new": "Новая", "proof": "На проверке", "hold": "Холд", "confirmed": "Подтверждена",
+             "paid": "Выплачена", "rejected": "Отклонена", "expired": "Истекла"}
+
+
+def start_kb():
+    rows = []
+    if cfg.webapp_url:
+        rows.append([InlineKeyboardButton(text="📱 Открыть BONVERA", web_app=WebAppInfo(url=cfg.webapp_url))])
+    rows.append([InlineKeyboardButton(text="❓ Как это работает", callback_data="howto"),
+                 InlineKeyboardButton(text="💰 Баланс", callback_data="quickbal")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@r.message(Command("help"))
+async def help_cmd(m: Message):
+    await m.answer(START_PITCH, reply_markup=start_kb())
+
+
+@r.callback_query(F.data == "howto")
+async def howto_cb(c: CallbackQuery):
+    await c.message.answer(START_PITCH, reply_markup=start_kb())
+    await c.answer()
+
+
+async def balance_text(uid: int) -> str:
+    async with Session() as s:
+        u = await s.get(User, uid)
+        if not u:
+            return "Сначала нажми /start"
+        hold = int((await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(
+            App.user_id == uid, App.status.in_(["proof", "hold"])))).scalar() or 0)
+        done = int((await s.execute(select(func.coalesce(func.sum(App.cashback), 0)).where(
+            App.user_id == uid, App.status.in_(["confirmed", "paid"])))).scalar() or 0)
+        refs = int((await s.execute(select(func.count(User.id)).where(User.referrer_id == uid))).scalar() or 0)
+    return ("💰 <b>Кошелёк</b>\n\n"
+            f"Доступно к выводу: <b>{int(u.balance or 0)} ₽</b>\n"
+            f"В проверке и холде: {hold} ₽\n"
+            f"Начислено за всё время: {done} ₽\n"
+            f"Приглашено друзей: {refs}\n\n"
+            "Вывод от 300 ₽ — в приложении, раздел «Кошелёк»")
+
+
+@r.message(Command("balance"))
+async def balance_cmd(m: Message):
+    await m.answer(await balance_text(m.from_user.id), reply_markup=start_kb())
+
+
+@r.callback_query(F.data == "quickbal")
+async def quickbal_cb(c: CallbackQuery):
+    await c.message.answer(await balance_text(c.from_user.id))
+    await c.answer()
+
+
+@r.message(Command("deals"))
+async def deals_cmd(m: Message):
+    async with Session() as s:
+        rows = (await s.execute(select(App).where(App.user_id == m.from_user.id)
+                                .order_by(App.created.desc()).limit(5))).scalars().all()
+    if not rows:
+        await m.answer("Заявок пока нет. Выбери предложение в приложении 👇", reply_markup=start_kb())
+        return
+    lines = []
+    for a in rows:
+        lines.append(f"#{a.id} · {STATUS_RU.get(a.status, a.status)} · {int(a.cashback or 0)} ₽")
+    await m.answer("📋 <b>Последние заявки</b>\n\n" + "\n".join(lines) +
+                   "\n\nПодробности и доказательства — в приложении.", reply_markup=start_kb())

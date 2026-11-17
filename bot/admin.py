@@ -910,3 +910,54 @@ async def ban(m: Message):
         u = await s.get(User, uid)
         if u: u.banned = not u.banned; await s.commit(); return await m.answer(f"{'🚫 забанен' if u.banned else '✅ разбанен'} {uid}")
     await m.answer("Не найден")
+
+@r.message(Command("stats"))
+async def stats_cmd(m: Message):
+    if m.from_user.id not in cfg.admins:
+        return
+    async with Session() as s:
+        users = int((await s.execute(select(func.count(User.id)))).scalar() or 0)
+        offers_on = int((await s.execute(select(func.count(Offer.id)).where(Offer.enabled == True))).scalar() or 0)
+        offers_all = int((await s.execute(select(func.count(Offer.id)))).scalar() or 0)
+        by_status = dict((await s.execute(select(App.status, func.count(App.id)).group_by(App.status))).all())
+        pending = int((await s.execute(select(func.coalesce(func.sum(PayoutReq.amount), 0)).where(
+            PayoutReq.status.in_(["pending", "processing", "review_required"])))).scalar() or 0)
+        postbacks = int((await s.execute(select(func.count(PbLog.id)))).scalar() or 0)
+    apps_total = sum(by_status.values())
+    lines = [f"👥 Пользователи: <b>{users}</b>",
+             f"🎯 Офферы: <b>{offers_on}</b> из {offers_all} активны",
+             f"📋 Заявки: <b>{apps_total}</b>",
+             f"💰 К выплате: <b>{pending} ₽</b>",
+             f"📡 Postback-логов: {postbacks}"]
+    for status, count in sorted(by_status.items(), key=lambda kv: -kv[1]):
+        lines.append(f"   • {status}: {count}")
+    await m.answer("📊 <b>Сводка BONVERA</b>\n\n" + "\n".join(lines))
+
+
+@r.message(Command("deal"))
+async def deal_cmd(m: Message):
+    if m.from_user.id not in cfg.admins:
+        return
+    parts = (m.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip().isdigit():
+        await m.answer("Использование: <code>/deal 123</code> — карточка заявки по номеру")
+        return
+    app_id = int(parts[1].strip())
+    async with Session() as s:
+        a = await s.get(App, app_id)
+        if a is None:
+            await m.answer(f"Заявка #{app_id} не найдена")
+            return
+        offer_name = (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}")
+        events = (await s.execute(select(DealEvent).where(DealEvent.app_id == app_id)
+                                  .order_by(DealEvent.id.desc()).limit(5))).scalars().all()
+    text = (f"🧾 <b>Заявка #{a.id}</b>\n\n"
+            f"Пользователь: <code>{a.user_id}</code>\n"
+            f"Оффер: {offer_name}\n"
+            f"Статус: <b>{a.status}</b>\n"
+            f"Кэшбэк: {int(a.cashback or 0)} ₽ · выплата сети: {int(a.payout or 0)} ₽\n"
+            f"Создана: {a.created:%d.%m.%Y %H:%M}\n"
+            f"Холд до: {a.hold_until:%d.%m.%Y}" if a.hold_until else f"Создана: {a.created:%d.%m.%Y %H:%M}")
+    if events:
+        text += "\n\n<b>Последние события</b>\n" + "\n".join(f"• {e.event}: {e.comment[:80]}" for e in events)
+    await m.answer(text)

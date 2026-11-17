@@ -30,6 +30,29 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", cfg.port).start()
     scheduler = make_scheduler(bot); scheduler.start()
     logging.info(f"postback endpoint запущен на :{cfg.port}; секрет скрыт")
+    try:
+        from aiogram.types import BotCommand, BotCommandScopeChat
+        user_commands = [
+            BotCommand(command="start", description="Меню и приложение"),
+            BotCommand(command="help", description="Как это работает"),
+            BotCommand(command="balance", description="Баланс и начисления"),
+            BotCommand(command="deals", description="Мои заявки"),
+        ]
+        admin_commands = user_commands + [
+            BotCommand(command="stats", description="Сводка по системе"),
+            BotCommand(command="deal", description="Карточка заявки: /deal 123"),
+            BotCommand(command="admin", description="Админ-панель"),
+        ]
+        await bot.set_my_commands(user_commands)
+        for admin_id in cfg.admins:
+            try:
+                await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+            except Exception:
+                logging.warning("не удалось установить команды для %s", admin_id)
+        logging.info("меню команд установлено")
+    except Exception:
+        logging.exception("не удалось установить меню команд")
+
     await bot.delete_webhook(drop_pending_updates=True)
     try:
         await dp.start_polling(bot)

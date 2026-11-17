@@ -1,0 +1,8 @@
+[Unit]
+Description=Bonvera health watchdog (host level)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cashback-bot/deploy/scripts/health-watchdog.sh

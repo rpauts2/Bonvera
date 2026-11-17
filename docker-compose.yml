@@ -14,6 +14,10 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -25,6 +29,10 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+    mem_limit: 192m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
   bot:
     build: .
     env_file: .env
@@ -45,6 +53,10 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 volumes:
   postgres_data:
   redis_data:

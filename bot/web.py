@@ -134,7 +134,8 @@ def make_web(bot):
                 s.add(DealEvent(app_id=a.id, actor_id=None, event="network_hold", from_status=old_status, to_status=HOLD, comment=f"Ожидается решение сети; контрольный срок {days} дней; postback status={st}"))
                 await s.commit()
                 await notify(bot, a.user_id, f"⏳ Сделка #{a.id} принята партнёром в обработку и находится в холде до {a.hold_until:%d.%m.%Y}.")
-        return web.json_response({"ok": True})
+        # Echo the resolved deal so support can match a callback without reading logs.
+        return web.json_response({"ok": True, "app": aid})
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/postback", pb)
     # Same handler: ProCPA and most CPA networks default to POST callbacks.

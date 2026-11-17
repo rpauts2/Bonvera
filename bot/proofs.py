@@ -55,7 +55,10 @@ def awaiting_admin_review(app, offer=None):
     verification = app.verification or {}
     submitted_at = verification.get("proof_submitted_at")
     if not submitted_at:
-        return False
+        # The user uploaded evidence but never pressed "send": still put the deal
+        # in front of an admin instead of hiding it in the queue.
+        items = [x for x in (app.proof_files or []) if isinstance(x, dict)]
+        return bool(items) and app.status == "proof"
     reviewed_at = verification.get("proof_reviewed_at")
     if reviewed_at and submitted_at <= reviewed_at:
         return False

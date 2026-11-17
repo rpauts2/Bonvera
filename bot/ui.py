@@ -1,13 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-MENU = ReplyKeyboardMarkup(keyboard=[
-    [KeyboardButton(text="💳 Карты"), KeyboardButton(text="⚽ Ставки")],
-    [KeyboardButton(text="🏦 Займы"), KeyboardButton(text="📝 Заявки")],
-    [KeyboardButton(text="💰 Кошелёк"), KeyboardButton(text="📋 Мои заявки")],
-    [KeyboardButton(text="👥 Друзья"), KeyboardButton(text="⚙️ Настройки")],
-    [KeyboardButton(text="🆘 Поддержка")],
-], resize_keyboard=True)
+MENU = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🆘 Поддержка")]], resize_keyboard=True)
 
 def ik(*rows):
     return InlineKeyboardMarkup(inline_keyboard=[

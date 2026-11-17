@@ -103,8 +103,10 @@ async def send_admin_menu(target: Message):
         [("📤 CSV выплат", "adm:csv")])
     if cfg.webapp_url:
         base = cfg.webapp_url.rstrip("/")
-        admin_url = f"{base}/admin/login" if base.endswith("/app") else f"{base}/app/admin/login"
-        keyboard.inline_keyboard.insert(0, [InlineKeyboardButton(text="🌐 Открыть веб-админку", url=admin_url)])
+        admin_url = f"{base}/admin" if base.endswith("/app") else f"{base}/app/admin"
+        # web_app keeps the panel inside Telegram; the login widget inside a WebView
+        # cannot run, so the SPA authenticates with initData instead.
+        keyboard.inline_keyboard.insert(0, [InlineKeyboardButton(text="🛠 Админка в приложении", web_app=WebAppInfo(url=admin_url))])
     await target.answer("🛠 <b>Админка</b>", reply_markup=keyboard)
 
 

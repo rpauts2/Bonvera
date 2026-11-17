@@ -12,6 +12,16 @@ export default function AdminLogin() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Opened as a Mini App: initData is already signed, no login widget needed.
+    const tg = (window as unknown as { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp;
+    const initData = tg?.initData;
+    if (!initData) return;
+    api.post<{ token: string }>("/auth/telegram", { initData })
+      .then((result) => { setSession(result.token); navigate("/admin", { replace: true }); })
+      .catch(() => { /* fall back to the widget below */ });
+  }, [navigate]);
+
+  useEffect(() => {
     let active = true;
     api.get<{ bot_username: string }>("/admin/login-config").then((v) => {
       if (active) { setBot(v.bot_username); setLoading(false); }

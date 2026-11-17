@@ -8,7 +8,7 @@ from bot.config import cfg
 from bot.db import *
 from bot.logic import parse_subid, confirm, notify, clawback_credit
 
-OK = {"approved", "confirmed", "1", "accepted"}
+OK = {"approved", "confirmed", "paid", "1", "accepted"}
 NO = {"rejected", "declined", "2", "cancelled"}
 WAIT = {"hold", "pending", "0"}
 
@@ -50,6 +50,11 @@ def make_web(bot):
             # Store only whitelisted operational fields; arbitrary network query params
             # may contain PII, credentials or tracking secrets.
             safe_q = {"subid": sid, "status": st, "payout": payout}
+            # Network-side identifiers, useful for reconciliation with ProCPA.
+            for key in ("click_id", "lead_id", "order_id", "offer_id", "currency"):
+                val = q.get(key)
+                if val:
+                    safe_q[key] = str(val)[:64]
             s.add(PbLog(subid=sid, status=st, payout=payout, raw=str(safe_q))); await s.commit()
             if not aid: return web.json_response({"ok": False, "err": "subid"})
             a = (await s.execute(select(App).where(App.id == aid).with_for_update())).scalar_one_or_none()
@@ -109,6 +114,17 @@ def make_web(bot):
                     for ad in cfg.admins:
                         await notify(bot, ad, f"⚠️ Clawback по сделке #{a.id}: баланс пользователя {u.id} стал отрицательным ({u.balance} ₽). Непроведённые выплаты отменены или заморожены для сверки.")
                 await notify(bot, a.user_id, f"❌ Заявка #{a.id} отклонена или отозвана рекламодателем. Если награда уже начислялась, она сторнирована. Вопросы — 🆘 Поддержка.")
+            elif st in WAIT and a.status == HOLD and (a.verification or {}).get("network_approved"):
+                # ProCPA sends "pending" when a confirmed conversion is put back
+                # on review. Drop the automatic approval so the lead is never paid
+                # out on a revoked confirmation; the decision goes back to an admin.
+                ver = dict(a.verification or {}); ver["network_approved"] = False; a.verification = ver
+                s.add(DealEvent(app_id=a.id, actor_id=None, event="network_reapproval",
+                                from_status=HOLD, to_status=HOLD,
+                                comment="Сеть вернула конверсию на проверку (postback pending); автоодобрение снято"))
+                await s.commit()
+                for ad in cfg.admins:
+                    await notify(bot, ad, f"⚠️ Сделка #{a.id}: сеть отозвала подтверждение. Автоодобрение снято, нужна ручная проверка.")
             elif st in WAIT and a.status not in (CONFIRMED, PAID, REJECTED, EXPIRED, HOLD):
                 o = await s.get(Offer, a.offer_id)
                 old_status = a.status

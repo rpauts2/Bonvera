@@ -609,14 +609,28 @@ def start_kb(uid: int):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+HELP_TEXT = (START_PITCH +
+    "\n\n<b>Где смотреть статус</b>\n"
+    "• 📋 Мои заявки — статус, срок брони и загруженные доказательства\n"
+    "• /deals — последние 5 заявок одной строкой\n"
+    "• /balance — кошелёк: доступно, в проверке, в холде\n\n"
+    "<b>Когда и сколько платят</b>\n"
+    "• Сумма закреплена в карточке оффера и не меняется после оформления\n"
+    "• Зачисление на кошелёк — после подтверждения партнёра, холд оффера указан в карточке\n"
+    f"• Вывод от {cfg.min_wd} ₽ по СБП, раздел «💰 Кошелёк»\n\n"
+    "<b>Поддержка</b>\n"
+    "• /support — опиши проблему одним сообщением, ответим в этом же чате\n"
+    "• По конкретной сделке — кнопка «🆘 Вопрос по этой сделке» в её карточке")
+
+
 @r.message(Command("help"))
 async def help_cmd(m: Message):
-    await m.answer(START_PITCH, reply_markup=start_kb(m.from_user.id))
+    await m.answer(HELP_TEXT, reply_markup=start_kb(m.from_user.id))
 
 
 @r.callback_query(F.data == "howto")
 async def howto_cb(c: CallbackQuery):
-    await c.message.answer(START_PITCH, reply_markup=start_kb(c.from_user.id))
+    await c.message.answer(HELP_TEXT, reply_markup=start_kb(c.from_user.id))
     await c.answer()
 
 

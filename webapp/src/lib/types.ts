@@ -34,6 +34,7 @@ export interface OfferCard {
   brand_slug: string;
   emoji: string;
   category: "cards" | "bk" | "mfo" | "cpl";
+  kind: string;
   reward: number;
   condition: string;
   hold_days: number;

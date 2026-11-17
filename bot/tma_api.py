@@ -313,8 +313,9 @@ async def offers_list(request):
     category = request.query.get("category", "")
     sort = request.query.get("sort", "reward")
     available_only = request.query.get("available") == "1"
+    card_type = request.query.get("card_type", "")
     async with Session() as s:
-        return ok(await services.list_offers(s, request["uid"], q=q, category=category, sort=sort, available_only=available_only))
+        return ok(await services.list_offers(s, request["uid"], q=q, category=category, sort=sort, available_only=available_only, card_type=card_type))
 
 
 async def offer_detail(request):

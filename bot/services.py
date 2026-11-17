@@ -222,6 +222,7 @@ async def offer_card(s: Session, o: Offer, bk: Bank, uid: int, taken: set[int], 
         "brand_slug": bk.slug,
         "emoji": bk.emoji,
         "category": bk.category,
+        "kind": o.kind or "",
         "reward": int(reward),
         "condition": o.condition_text or o.action,
         "hold_days": o.hold,
@@ -238,11 +239,13 @@ async def offer_card(s: Session, o: Offer, bk: Bank, uid: int, taken: set[int], 
     }
 
 
-async def list_offers(s: Session, uid: int, q: str = "", category: str = "", sort: str = "reward", available_only: bool = False) -> list[dict]:
+async def list_offers(s: Session, uid: int, q: str = "", category: str = "", sort: str = "reward", available_only: bool = False, card_type: str = "") -> list[dict]:
     u = await s.get(User, uid)
     stmt = select(Offer, Bank).join(Bank, Bank.id == Offer.bank_id)
     if category in ("cards", "bk", "mfo", "cpl"):
         stmt = stmt.where(Bank.category == category)
+    if card_type in ("debit", "credit"):
+        stmt = stmt.where(Offer.kind == card_type)
     if q:
         like = f"%{q.lower()}%"
         stmt = stmt.where(func.lower(Offer.name).like(like) | func.lower(Bank.name).like(like))

@@ -27,6 +27,7 @@ export default function Catalog() {
   const [category, setCategory] = useState<string>("all");
   const [sort, setSort] = useState<string>("reward");
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [cardType, setCardType] = useState<string>("all");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
@@ -38,10 +39,11 @@ export default function Catalog() {
     const params = new URLSearchParams();
     if (debouncedQ) params.set("q", debouncedQ);
     if (category !== "all") params.set("category", category);
+    if (category === "cards" && cardType !== "all") params.set("card_type", cardType);
     params.set("sort", sort);
     if (availableOnly) params.set("available", "1");
     return `/offers?${params.toString()}`;
-  }, [debouncedQ, category, sort, availableOnly]);
+  }, [debouncedQ, category, sort, availableOnly, cardType]);
 
   const { data, error, loading, reload } = useLoad<OfferCardType[]>(path);
 
@@ -104,6 +106,7 @@ export default function Catalog() {
               onClick={() => {
                 haptic("light");
                 setCategory(c.key);
+                setCardType("all");
               }}
               className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold transition-colors ${
                 category === c.key
@@ -116,6 +119,30 @@ export default function Catalog() {
           ))}
         </div>
 
+        {category === "cards" && (
+          <div className="flex gap-2 rounded-2xl border border-royal/20 bg-navy-900/60 p-1" role="tablist" aria-label="Тип карты">
+            {[
+              { key: "all", label: "Все карты" },
+              { key: "debit", label: "Дебетовые" },
+              { key: "credit", label: "Кредитные" },
+            ].map((t) => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={cardType === t.key}
+                onClick={() => {
+                  haptic("light");
+                  setCardType(t.key);
+                }}
+                className={`flex-1 rounded-xl px-3 py-2 text-[11px] font-bold transition-colors ${
+                  cardType === t.key ? "bg-electric/15 text-electric" : "text-indigo-300/70"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
         {category !== "rko" && (
         <div className="flex items-center gap-2">
           <select

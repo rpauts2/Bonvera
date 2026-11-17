@@ -23,6 +23,27 @@ function matches(a: MyApp, f: string): boolean {
   return a.status === "rejected" || a.status === "expired";
 }
 
+function nextStep(a: MyApp): { text: string; tone: string } | null {
+  switch (a.status) {
+    case "new":
+      return a.submitted ? { text: "Ждём проверки", tone: "text-indigo-300/70" } : { text: "Загрузи подтверждение", tone: "text-electric" };
+    case "proof":
+      return { text: "Проверяем доказательства", tone: "text-indigo-300/70" };
+    case "hold":
+      return { text: "Ждём подтверждения сети", tone: "text-gold" };
+    case "confirmed":
+      return { text: "Можно выводить на карту", tone: "text-emerald-glow" };
+    case "paid":
+      return { text: "Выплачено", tone: "text-emerald-glow" };
+    case "rejected":
+      return { text: "Отказ, причина внутри", tone: "text-rose-300" };
+    case "expired":
+      return { text: "Бронь истекла, можно взять заново", tone: "text-indigo-300/70" };
+    default:
+      return null;
+  }
+}
+
 export default function MyApps() {
   const { data, error, reload } = useLoad<MyApp[]>("/apps");
   const [filter, setFilter] = useState<string>("all");
@@ -106,6 +127,10 @@ export default function MyApps() {
                 {a.status === "hold" && a.hold_until && (
                   <span className="text-[12px] text-indigo-300/70">холд до {fmtDate(a.hold_until)}</span>
                 )}
+                {a.status !== "hold" && (() => {
+                  const step = nextStep(a);
+                  return step ? <span className={`text-[12px] font-semibold ${step.tone}`}>{step.text}</span> : null;
+                })()}
               </div>
             </Link>
           ))}

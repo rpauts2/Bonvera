@@ -10,11 +10,25 @@ const CAT_LABEL: Record<string, string> = {
   cpl: "CPL-заявки",
 };
 
+const KIND_LABEL: Record<string, string> = {
+  debit: "Дебетовая",
+  credit: "Кредитная",
+};
+
+function holdTone(days: number): string {
+  if (days <= 14) return "text-emerald-glow";
+  if (days <= 30) return "text-electric";
+  return "text-indigo-200/70";
+}
+
 export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: boolean }) {
   const brandInitial = offer.brand.trim().charAt(0).toUpperCase() || "B";
   const actionClass = offer.available
     ? "bg-electric/10 text-electric group-hover:bg-electric/15"
     : "bg-white/[0.04] text-indigo-200/65";
+  const kindLabel = offer.category === "cards" ? KIND_LABEL[offer.kind] ?? "" : "";
+  const ageBadge = offer.age_min > 18 ? `${offer.age_min}+` : "";
+  const muted = !offer.has_partner_link;
 
   return (
     <Link
@@ -40,13 +54,27 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
             onError={(event) => {
               event.currentTarget.style.display = "none";
             }}
-            className="relative z-[1] h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+            className={`relative z-[1] h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025] ${muted ? "opacity-70" : ""}`}
           />
         )}
         <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-navy-950/90 via-transparent to-navy-950/10" />
-        <span className="absolute left-3 top-3 z-[3] rounded-full border border-white/10 bg-navy-950/80 px-2.5 py-1 text-[11px] font-bold text-indigo-100 backdrop-blur">
-          {CAT_LABEL[offer.category] ?? offer.category}
-        </span>
+
+        <div className="absolute left-3 top-3 z-[3] flex flex-wrap gap-1.5">
+          <span className="rounded-full border border-white/10 bg-navy-950/80 px-2.5 py-1 text-[11px] font-bold text-indigo-100 backdrop-blur">
+            {CAT_LABEL[offer.category] ?? offer.category}
+          </span>
+          {kindLabel && (
+            <span className="rounded-full border border-violet-300/20 bg-navy-950/80 px-2.5 py-1 text-[10px] font-bold text-violet-200 backdrop-blur">
+              {kindLabel}
+            </span>
+          )}
+          {ageBadge && (
+            <span className="rounded-full border border-gold/25 bg-navy-950/80 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur">
+              {ageBadge}
+            </span>
+          )}
+        </div>
+
         {offer.available ? (
           <span className="absolute right-3 top-3 z-[3] inline-flex items-center gap-1 rounded-full border border-emerald-glow/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-emerald-glow backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-glow" />
@@ -57,7 +85,7 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
             className="absolute right-3 top-3 z-[3] max-w-[60%] truncate rounded-full border border-gold/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur"
             title={offer.unavailable_reason ?? undefined}
           >
-            {offer.has_partner_link ? "Скоро" : "Нет ссылки"}
+            {offer.has_partner_link ? "Скоро" : "Готовится"}
           </span>
         )}
       </div>
@@ -77,22 +105,24 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
             <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300/65">
               Вознаграждение
             </div>
-            <div className="mt-0.5 whitespace-nowrap text-xl font-black tracking-tight text-gold-gradient">
-              {offer.reward.toLocaleString("ru-RU")} ₽
+            <div
+              className={`mt-0.5 whitespace-nowrap text-xl font-black tracking-tight ${
+                offer.reward > 0 ? "text-gold-gradient" : "text-indigo-200/40"
+              }`}
+            >
+              {offer.reward > 0 ? `${offer.reward.toLocaleString("ru-RU")} ₽` : "Скоро"}
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-200/75">
-              <Icon name="clock" className="h-3.5 w-3.5 text-electric" />
+            <div className={`inline-flex items-center gap-1 text-[11px] font-semibold ${holdTone(offer.hold_days)}`}>
+              <Icon name="clock" className="h-3.5 w-3.5" />
               холд {offer.hold_days} дн.
             </div>
           </div>
         </div>
 
         {!compact && (
-          <p className="line-clamp-2 text-[11px] leading-relaxed text-indigo-200/65">
-            {offer.condition}
-          </p>
+          <p className="line-clamp-2 text-[11px] leading-relaxed text-indigo-200/65">{offer.condition}</p>
         )}
 
         <div className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-[11px] font-bold ${actionClass}`}>

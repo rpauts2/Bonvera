@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { ageRangeLabel, uniqueOfferDetails } from "../lib/format";
@@ -7,7 +7,7 @@ import type { OfferDetail, TakeResult, UserProfile } from "../lib/types";
 import { useSession } from "../state/session";
 import { Icon } from "../components/Icon";
 import { ErrorState, ListSkeleton, PageHeader, SectionTitle } from "../components/ui";
-import { haptic, hapticNotify, openExternal, showAlert } from "../lib/telegram";
+import { haptic, hapticNotify, openExternal } from "../lib/telegram";
 
 const CAT_LABEL: Record<string, string> = {
   cards: "Банковская карта",
@@ -15,6 +15,9 @@ const CAT_LABEL: Record<string, string> = {
   mfo: "Займ МФО",
   cpl: "CPL-заявка",
 };
+
+/** Заголовки трёх шагов оформления: условия → что понадобится → подтверждение. */
+const CHECKOUT_STEPS = ["Условия", "Что понадобится", "Подтверждение"];
 
 export default function OfferPage() {
   const { id } = useParams();
@@ -25,22 +28,66 @@ export default function OfferPage() {
   const [needAge, setNeedAge] = useState(false);
   const [ageInput, setAgeInput] = useState("");
   const [ageSaving, setAgeSaving] = useState(false);
+  const [step, setStep] = useState<number | null>(null);
+  const [agreed, setAgreed] = useState<boolean[]>([false, false, false]);
+  const [takeError, setTakeError] = useState<string | null>(null);
+
+  // Диалог закрывается по Esc так же, как по фону.
+  useEffect(() => {
+    if (step === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !taking) setStep(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, taking]);
+
+  // Пока диалог открыт, страница под ним не прокручивается.
+  useEffect(() => {
+    if (step === null) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [step]);
+
+  function openCheckout() {
+    haptic("light");
+    setAgreed([false, false, false]);
+    setTakeError(null);
+    setStep(0);
+  }
+
+  function closeCheckout() {
+    if (taking) return;
+    haptic("light");
+    setStep(null);
+    setTakeError(null);
+  }
+
+  function toggleAgreed(index: number) {
+    haptic("light");
+    setAgreed((prev) => prev.map((value, i) => (i === index ? !value : value)));
+  }
 
   async function take() {
     if (!offer) return;
     setTaking(true);
+    setTakeError(null);
     haptic("medium");
     try {
       const res = await api.post<TakeResult>(`/offers/${offer.id}/take`);
       hapticNotify("success");
+      setStep(null);
       navigate(`/apps/${res.app_id}`);
     } catch (e) {
       hapticNotify("error");
       if (e instanceof ApiError && e.code === "age_required") {
         setNeedAge(true);
-      } else {
-        showAlert(e instanceof Error ? e.message : "Не удалось создать заявку.");
       }
+      // 409/403 и прочие отказы показываем прямо в диалоге, рядом с кнопкой.
+      setTakeError(e instanceof Error ? e.message : "Не удалось создать заявку.");
       void reload();
     } finally {
       setTaking(false);
@@ -50,17 +97,18 @@ export default function OfferPage() {
   async function saveAgeAndTake() {
     const years = Number(ageInput);
     if (!Number.isInteger(years) || years < 18 || years > 120) {
-      showAlert("Укажи число полных лет от 18 до 120.");
+      setTakeError("Укажи число полных лет от 18 до 120.");
       return;
     }
     setAgeSaving(true);
+    setTakeError(null);
     try {
       await api.put<UserProfile>("/me/age", { years });
       await refresh();
       setNeedAge(false);
       await take();
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : "Не удалось сохранить возраст.");
+      setTakeError(e instanceof Error ? e.message : "Не удалось сохранить возраст.");
     } finally {
       setAgeSaving(false);
     }
@@ -70,6 +118,10 @@ export default function OfferPage() {
     offer && user?.age_years != null && (user.age_years < offer.age_min || user.age_years > offer.age_max);
   const conditionText = offer?.condition?.trim() || offer?.action?.trim() || "";
   const extraOfferDetails = uniqueOfferDetails(conditionText, offer?.action, offer?.rules);
+  const proofItems =
+    offer && offer.required_proofs.length > 0
+      ? offer.required_proofs
+      : ["Скриншот подтверждения выполнения"];
 
   return (
     <div>
@@ -282,47 +334,19 @@ export default function OfferPage() {
                 Осталось мест сегодня: <span className="font-bold text-electric">{offer.slots_left_today}</span>
               </p>
             )}
-            {needAge ? (
-              <div className="card-glass space-y-3 p-5">
-                <div className="text-sm font-extrabold text-indigo-100">
-                  Подтверди возраст для этого предложения
-                </div>
-                <p className="text-[12px] leading-relaxed text-indigo-300/75">
-                  Доступный возраст: {ageRangeLabel(offer.age_min, offer.age_max)}. Возраст проверяется на сервере
-                  и сохраняется в профиле — вводить его повторно не потребуется.
-                </p>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={18}
-                  max={120}
-                  className="input-dark w-full"
-                  placeholder="Полных лет, например 25"
-                  value={ageInput}
-                  onChange={(e) => setAgeInput(e.target.value)}
-                  aria-label="Число полных лет"
-                />
-                <button
-                  className="btn-gold w-full"
-                  disabled={ageSaving || taking}
-                  onClick={() => void saveAgeAndTake()}
-                >
-                  <Icon name="check" className="h-4 w-4" />
-                  {ageSaving || taking ? "Проверяю…" : "Подтвердить возраст и оформить"}
-                </button>
-                <button className="btn-ghost w-full text-xs" onClick={() => setNeedAge(false)}>
-                  Отмена
-                </button>
-              </div>
-            ) : offer.already_taken ? (
+            {offer.already_taken ? (
               <Link to="/apps" className="btn-primary w-full" onClick={() => haptic("light")}>
                 <Icon name="doc" className="h-4 w-4" /> Заявка уже оформлена — открыть
               </Link>
             ) : offer.available && !ageBlocked ? (
-              <button className="btn-gold w-full" disabled={taking} onClick={() => void take()}>
-                <Icon name="spark" className="h-4 w-4" />
-                {taking ? "Создаю заявку…" : "Оформить заявку"}
-              </button>
+              <>
+                <button className="btn-gold min-h-11 w-full" onClick={openCheckout}>
+                  <Icon name="spark" className="h-4 w-4" /> Получить кэшбэк
+                </button>
+                <p className="mt-2 text-center text-[12px] leading-relaxed text-indigo-300/75">
+                  3 шага: условия, что понадобится, подтверждение. Заявка создаётся только на последнем шаге.
+                </p>
+              </>
             ) : (
               <div className="space-y-2">
                 <button className="btn-gold w-full" disabled>
@@ -345,6 +369,240 @@ export default function OfferPage() {
               </button>
             )}
           </section>
+
+          {step !== null && (
+            <div
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-5"
+              onClick={closeCheckout}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="checkout-title"
+                onClick={(event) => event.stopPropagation()}
+                className="card-glass max-h-[92vh] w-full max-w-[520px] overflow-y-auto rounded-b-none rounded-t-3xl px-5 pt-5 sm:rounded-3xl"
+                style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-electric/80">
+                      Шаг {step + 1} из {CHECKOUT_STEPS.length}
+                    </div>
+                    <h2 id="checkout-title" className="mt-1 text-lg font-extrabold text-white">
+                      {CHECKOUT_STEPS[step]}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-royal/25 bg-navy-900/70 text-indigo-200"
+                    aria-label="Закрыть оформление"
+                    onClick={closeCheckout}
+                  >
+                    <Icon name="cross" className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="mt-3 flex gap-1.5" aria-hidden="true">
+                  {CHECKOUT_STEPS.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 flex-1 rounded-full ${
+                        i <= step ? "bg-gradient-to-r from-royal-soft to-electric" : "bg-navy-700"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {step === 0 && (
+                  <div className="mt-4 space-y-4">
+                    <p className="whitespace-pre-line text-lg font-extrabold leading-snug text-white">
+                      {conditionText || "Выполни условие партнёра и приложи подтверждение."}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
+                        <Icon name="clock" className="h-4 w-4 text-electric" />
+                        <div className="mt-2 text-sm font-extrabold text-white">{offer.hold_days} дн.</div>
+                        <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">холд</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
+                        <Icon name="coin" className="h-4 w-4 text-electric" />
+                        <div className="mt-2 text-sm font-extrabold text-white">
+                          {offer.purchase_min > 0 ? offer.purchase_min.toLocaleString("ru-RU") + " ₽" : "Не указана"}
+                        </div>
+                        <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">покупка от</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
+                        <Icon name="profile" className="h-4 w-4 text-electric" />
+                        <div className="mt-2 text-sm font-extrabold text-white">{ageRangeLabel(offer.age_min, offer.age_max)}</div>
+                        <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">возраст</div>
+                      </div>
+                    </div>
+                    <p className="text-[12px] leading-relaxed text-indigo-300/75">
+                      Условие проверяет партнёр. Если оно не выполнено, награда не начисляется.
+                    </p>
+                    <label className="flex min-h-[56px] cursor-pointer items-start gap-3 rounded-2xl border border-electric/25 bg-electric/[0.07] p-4">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-5 w-5 shrink-0 accent-electric"
+                        checked={agreed[0]}
+                        onChange={() => toggleAgreed(0)}
+                      />
+                      <span className="text-[13px] font-semibold leading-snug text-indigo-100">
+                        Я понял(а) условия
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {step === 1 && (
+                  <div className="mt-4 space-y-4">
+                    <div className="space-y-2">
+                      {proofItems.map((proof, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3.5"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-electric/15 text-electric">
+                            <Icon name="camera" className="h-4 w-4" />
+                          </span>
+                          <span className="text-[13px] font-semibold leading-snug text-indigo-100">{proof}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-2xl border border-gold/25 bg-gold/[0.07] p-4">
+                      <div className="flex items-center gap-2 text-[12px] font-extrabold text-gold">
+                        <Icon name="clock" className="h-4 w-4" /> Деньги придут после проверки
+                      </div>
+                      <ul className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-indigo-200/75">
+                        <li>Награда начисляется, только когда партнёр подтвердит выполнение условий.</li>
+                        <li>Холд {offer.hold_days} дн. — выплата станет доступна после этого срока.</li>
+                        <li>Покупки и траты — за свои деньги: сервис их не возвращает.</li>
+                      </ul>
+                    </div>
+                    <label className="flex min-h-[56px] cursor-pointer items-start gap-3 rounded-2xl border border-electric/25 bg-electric/[0.07] p-4">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-5 w-5 shrink-0 accent-electric"
+                        checked={agreed[1]}
+                        onChange={() => toggleAgreed(1)}
+                      />
+                      <span className="text-[13px] font-semibold leading-snug text-indigo-100">
+                        Я понял(а), что понадобится
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-300/70">
+                        {offer.emoji} {offer.brand}
+                      </div>
+                      <div className="mt-1 text-[15px] font-extrabold leading-snug text-white">{offer.name}</div>
+                      <div className="mt-3 flex items-end justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-gold/75">Награда</div>
+                          <div className="text-2xl font-black tracking-tight text-gold-gradient">
+                            {offer.reward.toLocaleString("ru-RU")} ₽
+                          </div>
+                        </div>
+                        <div className="text-right text-[11px] leading-relaxed text-indigo-300/75">
+                          Холд {offer.hold_days} дн.
+                          <br />
+                          {ageRangeLabel(offer.age_min, offer.age_max)}
+                          {offer.purchase_min > 0 && (
+                            <>
+                              <br />
+                              покупка от {offer.purchase_min.toLocaleString("ru-RU")} ₽
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {takeError && (
+                      <div
+                        role="alert"
+                        className="rounded-2xl border border-rose-alert/35 bg-rose-alert/10 p-4 text-[12px] leading-relaxed text-rose-alert"
+                      >
+                        {takeError}
+                      </div>
+                    )}
+
+                    {needAge && (
+                      <div className="space-y-2 rounded-2xl border border-royal/25 bg-navy-950/60 p-4">
+                        <div className="text-[12px] font-bold text-indigo-100">
+                          Подтверди возраст: {ageRangeLabel(offer.age_min, offer.age_max)}
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-indigo-300/75">
+                          Возраст проверяется на сервере и сохраняется в профиле — вводить повторно не потребуется.
+                        </p>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={18}
+                          max={120}
+                          className="input-dark w-full"
+                          placeholder="Полных лет, например 25"
+                          value={ageInput}
+                          onChange={(e) => setAgeInput(e.target.value)}
+                          aria-label="Число полных лет"
+                        />
+                        <button
+                          type="button"
+                          className="btn-ghost min-h-11 w-full text-xs"
+                          disabled={ageSaving || taking}
+                          onClick={() => void saveAgeAndTake()}
+                        >
+                          <Icon name="check" className="h-4 w-4" />
+                          {ageSaving || taking ? "Проверяю…" : "Сохранить возраст и оформить"}
+                        </button>
+                      </div>
+                    )}
+
+                    <p className="text-[11px] leading-relaxed text-indigo-300/70">
+                      «Оформить» создаёт заявку. Это бесплатно: покупки по условию ты делаешь своими деньгами,
+                      а награда приходит после проверки.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-5 flex gap-2">
+                  {step > 0 && (
+                    <button
+                      type="button"
+                      className="btn-ghost min-h-11 flex-1"
+                      disabled={taking || ageSaving}
+                      onClick={() => setStep(step - 1)}
+                    >
+                      <Icon name="chevron-left" className="h-4 w-4" /> Назад
+                    </button>
+                  )}
+                  {step < CHECKOUT_STEPS.length - 1 ? (
+                    <button
+                      type="button"
+                      className="btn-gold min-h-11 flex-1"
+                      disabled={!agreed[step]}
+                      onClick={() => setStep(step + 1)}
+                    >
+                      Дальше <Icon name="chevron-right" className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-gold min-h-11 flex-1"
+                      disabled={taking || ageSaving || !agreed[0] || !agreed[1]}
+                      onClick={() => void take()}
+                    >
+                      <Icon name="spark" className="h-4 w-4" />
+                      {taking ? "Создаю заявку…" : "Оформить"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { api, fmtDateTime, rub, uploadWithProgress } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import type { MyApp } from "../lib/types";
-import { Icon } from "../components/Icon";
+import { Icon, type IconName } from "../components/Icon";
 import { ErrorState, ListSkeleton, PageHeader, SectionTitle, StatusBadge } from "../components/ui";
 import { haptic, hapticNotify, openExternal, showAlert, showConfirm } from "../lib/telegram";
 
@@ -18,6 +18,135 @@ interface StagedFile {
   preview: string | null;
 }
 
+interface ProofView {
+  url: string;
+  name: string;
+  mime: string;
+  at: number;
+}
+
+type BannerTone = "electric" | "royal" | "gold" | "emerald" | "rose" | "muted";
+
+interface StatusBanner {
+  tone: BannerTone;
+  icon: IconName;
+  title: string;
+  text: string;
+  note?: string;
+}
+
+const BANNER_TONE: Record<BannerTone, string> = {
+  electric: "border-electric/30 bg-electric/10 text-electric",
+  royal: "border-royal/40 bg-royal/15 text-royal-soft",
+  gold: "border-gold/30 bg-gold/10 text-gold",
+  emerald: "border-emerald-glow/30 bg-emerald-glow/10 text-emerald-glow",
+  rose: "border-rose-alert/30 bg-rose-alert/10 text-rose-alert",
+  muted: "border-indigo-400/20 bg-indigo-400/10 text-indigo-200/70",
+};
+
+/** Подпись с правильным склонением: 1 файл, 2 файла, 5 файлов. */
+function filesWord(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "файл";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "файла";
+  return "файлов";
+}
+
+/** MIME по расширению — на случай, если сервер отдал пустой или общий тип. */
+function guessMime(name: string): string {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "heic" || ext === "heif") return "image/heic";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  return "";
+}
+
+/** Что показать пользователю в зависимости от статуса заявки. */
+function statusBanner(app: MyApp): StatusBanner {
+  const submittedNote =
+    app.submitted && (app.status === "proof" || app.status === "hold")
+      ? "Отправлено на проверку"
+      : undefined;
+  switch (app.status) {
+    case "new":
+      return {
+        tone: "electric",
+        icon: "camera",
+        title: "Загрузи подтверждение",
+        text: "Прикрепи скриншоты выполнения условий — после этого комплект можно отправить на проверку.",
+      };
+    case "proof":
+      return {
+        tone: "royal",
+        icon: "clock",
+        title: "Проверяем",
+        text: submittedNote
+          ? "Администратор проверяет комплект. Решение придёт в Telegram, статус обновится здесь."
+          : "Проверяем подтверждения. Если ниже чего-то не хватает — загрузи файл.",
+        note: submittedNote,
+      };
+    case "hold":
+      return {
+        tone: "gold",
+        icon: "clock",
+        title: app.hold_until ? `Ждём сеть до ${fmtDateTime(app.hold_until)}` : "Ждём сеть",
+        text: "Партнёрская сеть подтверждает выполнение условий. Как только придёт ответ, награда станет доступна к выводу.",
+        note: submittedNote,
+      };
+    case "confirmed":
+      return {
+        tone: "emerald",
+        icon: "coin",
+        title: "Начислено",
+        text: `${rub(app.cashback || app.reward)} зачислено на баланс — сумму можно вывести в кошельке.`,
+      };
+    case "paid":
+      return {
+        tone: "emerald",
+        icon: "check",
+        title: "Выплачено",
+        text: `${rub(app.cashback || app.reward)} переведено на твои реквизиты.`,
+      };
+    case "rejected":
+      return {
+        tone: "rose",
+        icon: "cross",
+        title: "Отклонено",
+        text: app.reason || "Заявка отклонена. Причину уточни в поддержке по этой сделке.",
+      };
+    default:
+      return {
+        tone: "muted",
+        icon: "clock",
+        title: "Истекло",
+        text: "Срок оформления заявки истёк. Возьми другое предложение в каталоге.",
+      };
+  }
+}
+
+function AppStatusBanner({ app }: { app: MyApp }) {
+  const banner = statusBanner(app);
+  return (
+    <section className="px-5 pt-3">
+      <div className={`flex items-start gap-3 rounded-2xl border p-4 ${BANNER_TONE[banner.tone]}`}>
+        <Icon name={banner.icon} className="mt-0.5 h-5 w-5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-extrabold">{banner.title}</div>
+          <p className="mt-1 text-xs leading-relaxed opacity-80">{banner.text}</p>
+          {banner.note && (
+            <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1 text-[11px] font-bold">
+              <Icon name="check" className="h-3 w-3" /> {banner.note}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function AppDetail() {
   const { id } = useParams();
   const { data: app, error, reload, setData } = useLoad<MyApp>(`/apps/${id}`);
@@ -29,13 +158,18 @@ export default function AppDetail() {
   const [messages, setMessages] = useState<DealMessage[]>([]);
   const [messageText, setMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [proofView, setProofView] = useState<ProofView | null>(null);
+  const [proofLoading, setProofLoading] = useState<number | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const previewUrls = useRef<Set<string>>(new Set());
+  const proofUrl = useRef<string | null>(null);
 
   useEffect(() => {
     const urls = previewUrls.current;
     return () => {
       urls.forEach((u) => URL.revokeObjectURL(u));
+      if (proofUrl.current) URL.revokeObjectURL(proofUrl.current);
     };
   }, []);
 
@@ -85,6 +219,7 @@ export default function AppDetail() {
     }
     if (next.length > 0) {
       setUploadError(null);
+      setUploadNotice(null);
       setStaged((prev) => [...prev, ...next]);
     }
     if (fileInput.current) fileInput.current.value = "";
@@ -101,11 +236,42 @@ export default function AppDetail() {
     });
   }
 
+  function closeProof() {
+    if (proofUrl.current) {
+      URL.revokeObjectURL(proofUrl.current);
+      proofUrl.current = null;
+    }
+    setProofView(null);
+  }
+
+  async function openProof(at: number) {
+    if (!app) return;
+    const item = app.proofs[at];
+    if (!item) return;
+    setProofLoading(at);
+    haptic("light");
+    try {
+      const blob = await api.blob(`/apps/${app.id}/proofs/${at}/file`);
+      const type = blob.type && blob.type !== "application/octet-stream" ? blob.type : guessMime(item.name);
+      const url = URL.createObjectURL(blob);
+      if (proofUrl.current) URL.revokeObjectURL(proofUrl.current);
+      proofUrl.current = url;
+      setProofView({ url, name: item.name, mime: type, at });
+    } catch (e) {
+      hapticNotify("error");
+      showAlert(e instanceof Error ? e.message : "Не удалось открыть файл.");
+    } finally {
+      setProofLoading(null);
+    }
+  }
+
   async function upload() {
     if (!app || staged.length === 0) return;
+    const sentCount = staged.length;
     setUploading(true);
     setProgress(0);
     setUploadError(null);
+    setUploadNotice(null);
     haptic("medium");
     const form = new FormData();
     staged.forEach((s) => form.append("files", s.file, s.file.name));
@@ -119,7 +285,9 @@ export default function AppDetail() {
       });
       setStaged([]);
       setData(updated);
+      setUploadNotice(`Загружено: ${sentCount} ${filesWord(sentCount)}. Список ниже обновлён.`);
       hapticNotify("success");
+      void reload();
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Ошибка загрузки. Файлы сохранены — попробуй ещё раз.");
       hapticNotify("error");
@@ -149,6 +317,9 @@ export default function AppDetail() {
       setSubmitting(false);
     }
   }
+
+  const receivedProofs = new Set(app?.proofs_received ?? []);
+  const missingProofs = app ? app.proofs_required.filter((_, i) => !receivedProofs.has(i)) : [];
 
   return (
     <div>
@@ -196,18 +367,6 @@ export default function AppDetail() {
                   </div>
                 );
               })()}
-              {app.reason && (
-                <div className="mt-3 rounded-2xl border border-rose-alert/30 bg-rose-alert/10 p-3 text-xs leading-relaxed text-rose-alert">
-                  {app.reason}
-                </div>
-              )}
-              {app.status === "hold" && app.hold_until && (
-                <div className="mt-3 flex items-center gap-2 rounded-2xl bg-gold/10 p-3 text-xs text-gold">
-                  <Icon name="clock" className="h-4 w-4 shrink-0" />
-                  Холд партнёрской сети до {fmtDateTime(app.hold_until)}. После подтверждения сумма
-                  станет доступна к выводу.
-                </div>
-              )}
               {app.booking_until && (app.status === "new" || app.status === "proof") && (
                 <div className="mt-3 flex items-center gap-2 rounded-2xl bg-electric/10 p-3 text-xs text-electric">
                   <Icon name="clock" className="h-4 w-4 shrink-0" />
@@ -228,6 +387,8 @@ export default function AppDetail() {
             </div>
           </section>
 
+          <AppStatusBanner app={app} />
+
           {app.more_info_text && (
             <section className="px-5 pt-3">
               <div className="card-glass p-4 text-xs leading-relaxed text-indigo-200/70">
@@ -237,49 +398,101 @@ export default function AppDetail() {
             </section>
           )}
 
-          {app.proofs_required.length > 0 && (
-            <>
-              <SectionTitle>Подтверждения</SectionTitle>
-              <section className="px-5">
-                <div className="card-glass space-y-2.5 p-5">
+          <SectionTitle
+            action={
+              <span className="text-[11px] font-semibold text-indigo-300/45">
+                {app.proofs.length} {filesWord(app.proofs.length)}
+              </span>
+            }
+          >
+            Доказательства
+          </SectionTitle>
+          <section className="space-y-2 px-5">
+            {app.proofs.length === 0 ? (
+              <div className="card-glass px-4 py-5 text-center text-xs leading-relaxed text-indigo-300/60">
+                Пока ничего не загружено.
+                {app.can_upload ? " Добавь скриншоты или PDF в блоке ниже." : ""}
+              </div>
+            ) : (
+              app.proofs.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="card-glass flex w-full items-center gap-3 p-3.5 text-left transition active:scale-[0.99] disabled:opacity-60"
+                  onClick={() => void openProof(i)}
+                  disabled={proofLoading !== null}
+                  aria-label={`Открыть файл ${p.name}`}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-electric/10 text-electric">
+                    <Icon name={proofLoading === i ? "refresh" : "doc"} className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold">{p.name}</span>
+                    <span className="block text-[12px] text-indigo-300/45">
+                      {p.label ? `${p.label} · ` : ""}
+                      {fmtDateTime(p.uploaded_at)}
+                    </span>
+                  </span>
+                  {p.duplicate_suspected && (
+                    <span className="shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 text-[11px] font-bold text-gold">
+                      возможен дубликат
+                    </span>
+                  )}
+                  <Icon name="chevron-right" className="h-4 w-4 shrink-0 text-indigo-300/40" />
+                </button>
+              ))
+            )}
+          </section>
+
+          <SectionTitle>Чего не хватает</SectionTitle>
+          <section className="px-5">
+            <div className="card-glass space-y-2.5 p-5">
+              {app.proofs_required.length === 0 ? (
+                <p className="text-xs leading-relaxed text-indigo-200/65">
+                  Для этого предложения список пунктов не задан. Уже загружено: {app.proofs.length}{" "}
+                  {filesWord(app.proofs.length)}.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-indigo-300/60">Пункты подтверждения</span>
+                    <span
+                      className={`font-bold ${missingProofs.length > 0 ? "text-gold" : "text-emerald-glow"}`}
+                    >
+                      {missingProofs.length > 0
+                        ? `осталось ${missingProofs.length} из ${app.proofs_required.length}`
+                        : "всё собрано"}
+                    </span>
+                  </div>
                   {app.proofs_required.map((label, i) => {
-                    const done = app.proofs_received.includes(i);
+                    const done = receivedProofs.has(i);
                     return (
                       <div key={i} className="flex items-center gap-3 text-xs">
                         <span
                           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                            done ? "bg-emerald-glow/15 text-emerald-glow" : "bg-navy-800 text-indigo-300/70"
+                            done ? "bg-emerald-glow/15 text-emerald-glow" : "bg-gold/10 text-gold"
                           }`}
                         >
-                          <Icon name={done ? "check" : "camera"} className="h-3.5 w-3.5" />
+                          <Icon name={done ? "check" : "plus"} className="h-3.5 w-3.5" />
                         </span>
-                        <span className={done ? "text-indigo-100" : "text-indigo-200/65"}>{label}</span>
+                        <span className={done ? "text-indigo-300/40 line-through" : "text-indigo-100"}>
+                          {label}
+                        </span>
+                        {!done && (
+                          <span className="ml-auto shrink-0 text-[11px] font-bold text-gold">нужно</span>
+                        )}
                       </div>
                     );
                   })}
-                </div>
-              </section>
-            </>
-          )}
-
-          {app.proofs.length > 0 && (
-            <section className="space-y-2 px-5 pt-3">
-              {app.proofs.map((p, i) => (
-                <div key={i} className="card-glass flex items-center gap-3 p-3.5">
-                  <Icon name="doc" className="h-5 w-5 shrink-0 text-electric" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-bold">{p.name}</div>
-                    <div className="text-[12px] text-indigo-300/45">{fmtDateTime(p.uploaded_at)}</div>
-                  </div>
-                  {p.duplicate_suspected && (
-                    <span className="shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 text-[12px] font-bold text-gold">
-                      возможен дубликат
-                    </span>
+                  {missingProofs.length === 0 && (
+                    <p className="pt-1 text-[12px] text-indigo-300/50">
+                      Все пункты закрыты — комплект можно отправлять на проверку.
+                    </p>
                   )}
-                </div>
-              ))}
-            </section>
-          )}
+                </>
+              )}
+            </div>
+          </section>
 
           {app.can_upload && (
             <>
@@ -349,11 +562,23 @@ export default function AppDetail() {
                     </div>
                   )}
 
+                  {uploadNotice && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-glow/30 bg-emerald-glow/10 p-3 text-xs text-emerald-glow">
+                      <Icon name="check" className="h-4 w-4 shrink-0" /> {uploadNotice}
+                    </div>
+                  )}
+
                   {staged.length > 0 && (
                     <button className="btn-primary w-full" disabled={uploading} onClick={() => void upload()}>
                       <Icon name="arrow-up" className="h-4 w-4" />
                       {uploading ? "Отправляю…" : `Отправить ${staged.length} файл(ов)`}
                     </button>
+                  )}
+
+                  {app.submitted && (
+                    <p className="text-[11px] leading-relaxed text-indigo-300/45">
+                      Комплект уже отправлен на проверку. Новый файл отправит его повторно.
+                    </p>
                   )}
 
                   <p className="text-[12px] leading-relaxed text-indigo-300/45">
@@ -365,7 +590,7 @@ export default function AppDetail() {
             </>
           )}
 
-          {app.can_submit && (
+          {app.can_submit && !app.submitted && (
             <section className="px-5 pt-4">
               <button className="btn-gold w-full" disabled={submitting} onClick={() => void submit()}>
                 <Icon name="check" className="h-4 w-4" />
@@ -418,6 +643,93 @@ export default function AppDetail() {
                 </div>
               </section>
             </>
+          )}
+
+          {proofView && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/90 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label={proofView.name}
+              onClick={closeProof}
+            >
+              <div
+                className="card-glass max-h-[90vh] w-full max-w-3xl overflow-auto p-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-extrabold">{proofView.name}</div>
+                    <div className="text-[11px] text-indigo-300/50">
+                      Файл {proofView.at + 1} из {app.proofs.length} · {proofView.mime || "файл"}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {app.proofs.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-ghost px-3 py-2 text-xs"
+                          onClick={() =>
+                            void openProof((proofView.at + app.proofs.length - 1) % app.proofs.length)
+                          }
+                          disabled={proofLoading !== null}
+                          aria-label="Предыдущий файл"
+                        >
+                          <Icon name="chevron-left" className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost px-3 py-2 text-xs"
+                          onClick={() => void openProof((proofView.at + 1) % app.proofs.length)}
+                          disabled={proofLoading !== null}
+                          aria-label="Следующий файл"
+                        >
+                          <Icon name="chevron-right" className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                    <a
+                      href={proofView.url}
+                      download={proofView.name}
+                      className="btn-ghost px-3 py-2 text-xs"
+                    >
+                      Скачать
+                    </a>
+                    <button type="button" className="btn-ghost px-3 py-2 text-xs" onClick={closeProof}>
+                      <Icon name="cross" className="h-4 w-4" /> Закрыть
+                    </button>
+                  </div>
+                </div>
+                {proofView.mime === "application/pdf" ? (
+                  <iframe
+                    src={proofView.url}
+                    title={proofView.name}
+                    className="h-[70vh] w-full rounded-xl bg-white"
+                  />
+                ) : proofView.mime.startsWith("image/") && !/hei[cf]/.test(proofView.mime) ? (
+                  <img
+                    src={proofView.url}
+                    alt={proofView.name}
+                    className="mx-auto max-h-[70vh] max-w-full rounded-xl object-contain"
+                  />
+                ) : (
+                  <div className="rounded-xl border border-royal/25 bg-navy-950/60 p-6 text-center text-xs text-indigo-200/70">
+                    <Icon name="doc" className="mx-auto h-8 w-8 text-electric" />
+                    <p className="mt-2 leading-relaxed">
+                      Предпросмотр для этого формата недоступен — скачай файл, чтобы открыть его.
+                    </p>
+                    <a
+                      href={proofView.url}
+                      download={proofView.name}
+                      className="btn-primary mt-3 px-4 py-2 text-xs"
+                    >
+                      Скачать файл
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </>
       )}

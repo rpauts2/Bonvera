@@ -20,7 +20,9 @@ SHARE = 0.70
 LABEL = "Вознаграждение пользователю: 70% выплаты сети"
 # The ProCPA rate card ("up to N RUB") already equals 70% of the network payout,
 # so it is stored as cashback and the payout is reconstructed as value / 0.7.
-LIST_IS_PAYOUT = "--as-payout" in __import__("sys").argv  # rate card is already 70% cashback
+# The owner keeps a single number: the rate from ProCPA is both the payout and the
+# cashback shown to users. --split-70 reconstructs the gross payout as cashback/0.7.
+SPLIT = "--split-70" in __import__("sys").argv
 
 # category -> brand -> cashback the user receives
 CASHBACK = {
@@ -90,11 +92,7 @@ async def main() -> None:
             tiers = (await s.execute(select(Tier).where(Tier.offer_id == offer.id).order_by(Tier.id))).scalars().all()
             cashback = lookup(bank.name, bank.category, offer.kind or "")
             if cashback is not None:
-                if LIST_IS_PAYOUT:
-                    payout = cashback
-                    cashback = int(round(payout * SHARE / 10.0) * 10)
-                else:
-                    payout = payout_from_cashback(cashback)
+                payout = payout_from_cashback(cashback) if SPLIT else cashback
                 stats["list"] += 1
                 if dry:
                     print(f"LIST   {bank.category:6} {bank.name:24} cb={cashback:6} payout={payout}")
@@ -106,7 +104,7 @@ async def main() -> None:
                         print(f"KEEP   {bank.category:6} {bank.name:24} (no data)")
                     continue
                 payout = known_payout
-                cashback = int(round(payout * SHARE / 10.0) * 10)
+                cashback = int(round(payout * SHARE / 10.0) * 10) if SPLIT else payout
                 stats["policy"] += 1
                 if dry:
                     print(f"POLICY {bank.category:6} {bank.name:24} cb={cashback:6} payout={payout}")
@@ -114,7 +112,7 @@ async def main() -> None:
             if not tiers:
                 s.add(Tier(offer_id=offer.id, payout=payout, cashback=cashback, label=LABEL))
                 continue
-            tiers[0].payout = max(tiers[0].payout or 0, payout)
+            tiers[0].payout = payout
             tiers[0].cashback = cashback
             tiers[0].label = LABEL
             for extra in tiers[1:]:

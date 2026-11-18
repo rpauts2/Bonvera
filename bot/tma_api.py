@@ -597,7 +597,9 @@ async def app_submit(request):
         submitted_at = ver.get("proof_submitted_at")
         last_received = ver.get("proof_last_received_at")
         if submitted_at and (not last_received or last_received <= submitted_at):
-            return err("already_submitted", "Этот комплект уже отправлен на проверку. Дождись решения администратора.", 409)
+            # Idempotent: the package is already under review (auto-submit on upload).
+            # Repeating the call must not look like an error to the Mini App.
+            return ok(await services.app_detail(s, a))
         old = a.status
         ver["proof_submitted_at"] = datetime.utcnow().isoformat()
         ver.pop("more_info_requested_at", None)

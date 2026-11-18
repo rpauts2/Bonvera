@@ -847,6 +847,7 @@ async def admin_section(request):
     from sqlalchemy import func, or_
     section = request.match_info["section"]
     query = (request.query.get("q", "") or "").strip()[:80]
+    total_rows = None
     async with Session() as s:
         if section == "users":
             stmt = select(User).order_by(User.created.desc()).limit(100)
@@ -878,7 +879,21 @@ async def admin_section(request):
             rows = (await s.execute(select(AdminAuditEvent).order_by(AdminAuditEvent.created.desc(), AdminAuditEvent.id.desc()).limit(300))).scalars().all()
             data = [{"id": e.id, "actor_id": e.actor_id, "action": e.action, "target_type": e.target_type, "target_id": e.target_id, "details": e.details, "created": e.created.isoformat() if e.created else None} for e in rows]
         elif section == "postbacks":
-            rows = (await s.execute(select(PbLog).order_by(PbLog.id.desc()).limit(200))).scalars().all()
+            status_filter = (request.query.get("status", "") or "").strip()[:20]
+            raw_limit = (request.query.get("limit", "") or "").strip()
+            try:
+                limit = int(raw_limit) if raw_limit else 200
+            except ValueError:
+                limit = 200
+            limit = max(1, min(500, limit))
+            pb_filters = []
+            if status_filter:
+                pb_filters.append(PbLog.status == status_filter)
+            if query:
+                pattern = f"%{query}%"
+                pb_filters.append(or_(PbLog.subid.ilike(pattern), PbLog.raw.ilike(pattern)))
+            total_rows = int((await s.execute(select(func.count()).select_from(PbLog).where(*pb_filters))).scalar() or 0)
+            rows = (await s.execute(select(PbLog).where(*pb_filters).order_by(PbLog.id.desc()).limit(limit))).scalars().all()
             data = [{"id": p.id, "subid": p.subid, "status": p.status, "payout": p.payout, "raw": p.raw} for p in rows]
         elif section == "finance":
             credits = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
@@ -913,7 +928,10 @@ async def admin_section(request):
             data = {"users_total": users_total, "users_accepted": users_accepted, "apps_total": apps_total, "apps_new": apps_new, "apps_confirmed_7d": apps_confirmed, "apps_paid_7d": apps_paid, "conversion_pct": conversion_pct, "wallet_credited": wallet_credited, "paid_to_users": paid_to_users, "daily": daily, "note": "Окно 7 дней — заявки по дате создания. Конверсия = подтверждённые и выплаченные / новые."}
         else:
             return err("not_found", "Раздел не найден.", 404)
-    return ok({"section": section, "items": data})
+    payload = {"section": section, "items": data}
+    if total_rows is not None:
+        payload["total"] = total_rows
+    return ok(payload)
 
 
 async def _admin_audit(session, actor_id: int, action: str, target_type: str, target_id, details: str = ""):

@@ -192,6 +192,76 @@ def make_scheduler(bot):
             await purge_expired_evidence(bot)
         except Exception:  # noqa: BLE001 — чистка не должна ронять планировщик
             logging.exception("не удалось выполнить чистку доказательств")
+    async def stale_proofs_job():
+        """Напоминание о незагруженных доказательствах: заявки 6-48 ч без прогресса.
+
+        Одна попытка на заявку: флаг verification.proof_reminder_sent хранится в JSON
+        и коммитится вместе с остальными изменениями прохода.
+        """
+        from bot.user import PROOF_REMINDER_TEXT, reminder_kb
+        now = datetime.utcnow()
+        found = sent = 0
+        async with Session() as s:
+            rows = (await s.execute(
+                select(App).where(App.status.in_((NEW, PROOF)),
+                                  App.created >= now - timedelta(hours=48),
+                                  App.created <= now - timedelta(hours=6))
+            )).scalars().all()
+            for a in rows:
+                ver = dict(a.verification or {})
+                if ver.get("proof_reminder_sent"):
+                    continue
+                # Доказательство уже есть — файлом или отметкой о загрузке.
+                if a.proof_files or ver.get("proof_submitted_at"):
+                    continue
+                found += 1
+                hours = max(6, int((now - a.created).total_seconds() // 3600))
+                try:
+                    await notify(bot, a.user_id,
+                                 PROOF_REMINDER_TEXT.format(app_id=a.id, hours=hours),
+                                 reply_markup=reminder_kb())
+                except Exception:  # noqa: BLE001 — одна заявка не должна ронять проход
+                    logging.exception("не удалось напомнить о доказательствах по сделке #%s", a.id)
+                    continue
+                ver["proof_reminder_sent"] = now.isoformat(timespec="seconds")
+                a.verification = ver
+                sent += 1
+            await s.commit()
+        logging.info("stale_proofs: найдено %d, отправлено %d", found, sent)
+
+    async def booking_expiring_job():
+        """Напоминание за 6 ч до конца брони (booking_until = created + BOOKING_HOURS)."""
+        from bot.user import BOOKING_REMINDER_TEXT, reminder_kb
+        now = datetime.utcnow()
+        found = sent = 0
+        async with Session() as s:
+            rows = (await s.execute(
+                select(App).where(App.status == NEW,
+                                  App.created > now - timedelta(hours=cfg.booking_h),
+                                  App.created <= now + timedelta(hours=6 - cfg.booking_h))
+            )).scalars().all()
+            for a in rows:
+                left = a.created + timedelta(hours=cfg.booking_h) - now
+                if left <= timedelta(0) or left > timedelta(hours=6):
+                    continue
+                ver = dict(a.verification or {})
+                if ver.get("booking_reminder_sent"):
+                    continue
+                found += 1
+                hours = max(1, int(round(left.total_seconds() / 3600)))
+                try:
+                    await notify(bot, a.user_id,
+                                 BOOKING_REMINDER_TEXT.format(app_id=a.id, hours=hours),
+                                 reply_markup=reminder_kb())
+                except Exception:  # noqa: BLE001
+                    logging.exception("не удалось напомнить о брони по сделке #%s", a.id)
+                    continue
+                ver["booking_reminder_sent"] = now.isoformat(timespec="seconds")
+                a.verification = ver
+                sent += 1
+            await s.commit()
+        logging.info("booking_expiring: найдено %d, отправлено %d", found, sent)
+
     sch.add_job(expire, "interval", minutes=30)
     sch.add_job(remind, "interval", minutes=60)
     sch.add_job(hold_check, "interval", minutes=15)
@@ -221,6 +291,8 @@ def make_scheduler(bot):
             except Exception:
                 continue
     sch.add_job(network_silence, "interval", hours=6, id="network_silence")
+    sch.add_job(stale_proofs_job, "interval", hours=2, id="stale_proofs", jitter=300)
+    sch.add_job(booking_expiring_job, "interval", hours=1, id="booking_expiring", jitter=120)
 
     sch.add_job(watchdog, "interval", minutes=max(1, cfg.health_interval_min), id="watchdog", args=[bot])
     return sch

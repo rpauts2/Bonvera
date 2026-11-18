@@ -599,6 +599,29 @@ START_PITCH = (
 STATUS_RU = {"new": "Новая", "proof": "На проверке", "hold": "Холд", "confirmed": "Подтверждена",
              "paid": "Выплачена", "rejected": "Отклонена", "expired": "Истекла"}
 
+# Напоминания планировщика (bot/web.py). По каждой заявке отправляются один раз:
+# повтор защищён флагами verification.proof_reminder_sent / booking_reminder_sent.
+PROOF_REMINDER_TEXT = (
+    "📤 По сделке #{app_id} до сих пор нет подтверждения.\n"
+    "Заявка оформлена {hours} ч назад — без доказательства награду не начислить.\n"
+    "Открой приложение и загрузи скриншот или номер заявки: проверка занимает до одного дня."
+)
+
+BOOKING_REMINDER_TEXT = (
+    "⏰ Бронь по сделке #{app_id} истекает примерно через {hours} ч.\n"
+    "Успей выполнить условие и загрузить подтверждение, иначе заявка закроется "
+    "и предложение придётся оформлять заново."
+)
+
+
+def reminder_kb():
+    """Кнопка перехода в мини-апп для напоминаний; None без WEBAPP_URL."""
+    if not cfg.webapp_url:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="📱 Открыть BONVERA", web_app=WebAppInfo(url=cfg.webapp_url))
+    ]])
+
 
 def start_kb(uid: int):
     """Regular users get one call to action; admins also get the panel button."""

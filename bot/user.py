@@ -34,7 +34,8 @@ async def send_webapp_button(m: Message):
     # A reply-keyboard web_app button would open the app with EMPTY initData.
     if not cfg.webapp_url:
         return
-    kb = start_kb(m.from_user.id)
+    uid = getattr(getattr(m, "from_user", None), "id", 0)
+    kb = start_kb(uid)
     await m.answer("📱 <b>Приложение BONVERA</b> — каталог, заявки, кошелёк и бонусы:", reply_markup=kb)
 
 @r.message(CommandStart())

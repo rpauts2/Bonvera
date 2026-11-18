@@ -311,7 +311,8 @@ def test_proof_submit_and_repeat(loop, client, offers):
     assert body["data"]["can_submit"] is False
 
     status, body = post_json(loop, client, f"/api/v1/apps/{aid}/submit", token)
-    assert status == 409 and body["err"]["code"] == "already_submitted"
+    # Idempotent contract: repeating the submit returns success, not an error.
+    assert status == 200 and body["data"]["submitted"] is True
 
 
 def test_submit_incomplete_checklist(loop, client, offers):

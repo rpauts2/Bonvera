@@ -1355,6 +1355,157 @@ async def admin_offer_update(request):
         return ok({"id": offer.id, "name": offer.name, "url": offer.url, "action": offer.action, "rules": offer.rules, "hold": offer.hold, "age_min": offer.age_min, "age_max": offer.age_max, "network_payout": after["network_payout"], "user_reward": after["user_reward"], "condition_text": offer.condition_text, "enabled": offer.enabled, "network_status": offer.network_status, "approval_reset": reset_approval})
 
 
+OFFER_IMPORT_LIMIT = 500
+OFFER_IMPORT_EMOJI = {"cards": "\U0001F4B3", "bk": "\u26bd", "mfo": "\U0001F3E6", "cpl": "\U0001F4DD"}
+
+
+def _offer_import_row(raw, line: int):
+    """Validate one CSV row like admin_offer_create; returns (payload, reason)."""
+    if not isinstance(raw, dict):
+        return None, "строка не является объектом"
+    name = str(raw.get("name") or "").strip()
+    bank_name = str(raw.get("bank") or "").strip()
+    category = str(raw.get("category") or "").strip().lower()
+    url = str(raw.get("url") or "").strip()
+    condition = str(raw.get("condition") or "").strip()
+    kind = str(raw.get("kind") or "").strip().lower()
+    code = str(raw.get("code") or "").strip().lower()
+    if not name:
+        return None, "нет названия (name)"
+    if len(name) > 160:
+        return None, "name длиннее 160 символов"
+    if not bank_name:
+        return None, "нет партнёра (bank)"
+    if len(bank_name) > 80:
+        return None, "bank длиннее 80 символов"
+    if category not in OFFER_IMPORT_EMOJI:
+        return None, "неизвестная категория"
+    if url and not url.startswith(("https://", "http://")):
+        return None, "url должен начинаться с http:// или https://"
+    if len(url) > 2000:
+        return None, "url длиннее 2000 символов"
+    if len(condition) > 3000:
+        return None, "condition длиннее 3000 символов"
+    raw_rate = raw.get("rate")
+    if isinstance(raw_rate, bool):
+        return None, "rate должен быть целым числом"
+    if raw_rate is None or str(raw_rate).strip() == "":
+        rate = 0
+    else:
+        try:
+            rate = int(str(raw_rate).strip())
+        except (TypeError, ValueError):
+            return None, "rate должен быть целым числом"
+    if not 0 <= rate <= 100000000:
+        return None, "rate вне диапазона 0..100000000"
+    if not code:
+        code = "".join(ch if (ch.isalnum() or ch in "-_") else "-" for ch in name.lower()).strip("-")[:40]
+    if not code or len(code) > 60 or not code.isascii() or not all(ch.isalnum() or ch in "-_" for ch in code):
+        return None, "code: латиница, цифры, дефис и подчёркивание (до 60)"
+    if category == "cards" and kind not in ("debit", "credit"):
+        kind = "credit" if "кредит" in name.lower() else "debit"
+    return {"line": line, "code": code, "name": name, "bank": bank_name, "category": category, "url": url, "rate": rate, "condition": condition, "kind": kind}, ""
+
+
+async def _offer_import_preview(session, rows):
+    """Build create/update/error preview plus parsed rows and locked offers."""
+    preview, parsed, seen = [], [], {}
+    for index, raw in enumerate(rows):
+        line = index + 1
+        data, reason = _offer_import_row(raw, line)
+        entry = {"line": line, "code": "", "name": "", "status": "error", "reason": reason}
+        if data is not None:
+            entry.update({"code": data["code"], "name": data["name"], "status": "create"})
+            if data["code"] in seen:
+                entry.update({"status": "error", "reason": f"дубль code в файле (строка {seen[data['code']]})"})
+            else:
+                seen[data["code"]] = line
+                parsed.append((data, entry))
+        preview.append(entry)
+    codes = [data["code"] for data, _entry in parsed]
+    if codes:
+        offers = {offer.code: offer for offer in (await session.execute(select(Offer).where(Offer.code.in_(codes)).with_for_update())).scalars()}
+    else:
+        offers = {}
+    for data, entry in parsed:
+        if data["code"] in offers:
+            entry["status"] = "update"
+    return parsed, preview, offers
+
+
+async def admin_offer_import(request):
+    """Preview and apply a CSV offer import in a single transaction."""
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return err("bad_json", "Некорректный запрос.")
+    if not isinstance(body, dict):
+        return err("bad_json", "Некорректный запрос.")
+    rows = body.get("rows")
+    dry_run = body.get("dry_run", True)
+    if not isinstance(dry_run, bool):
+        return err("bad_field", "Поле dry_run должно быть логическим.")
+    if not isinstance(rows, list) or not rows:
+        return err("empty_rows", "Передай непустой список строк.")
+    if len(rows) > OFFER_IMPORT_LIMIT:
+        return err("too_many_rows", f"За один раз можно импортировать не более {OFFER_IMPORT_LIMIT} строк.")
+    async with Session() as s:
+        parsed, preview, offers = await _offer_import_preview(s, rows)
+        counts = {key: sum(1 for row in preview if row["status"] == key) for key in ("create", "update", "error")}
+        if dry_run:
+            return ok({"dry_run": True, "total": len(preview), "counts": counts, "rows": preview})
+        if counts["error"]:
+            return err("import_invalid", f"Строк с ошибками: {counts['error']}. Исправь файл и повтори проверку.", 409)
+        codes = [data["code"] for data, _entry in parsed]
+        if codes:
+            banks = {bank.slug: bank for bank in (await s.execute(select(Bank).where(Bank.slug.in_(codes)).with_for_update())).scalars()}
+        else:
+            banks = {}
+        try:
+            created = updated = 0
+            for data, _entry in parsed:
+                bank = banks.get(data["code"])
+                if bank is None:
+                    bank = Bank(slug=data["code"], name=data["bank"], emoji=OFFER_IMPORT_EMOJI[data["category"]], category=data["category"], sort=900)
+                    s.add(bank)
+                    await s.flush()
+                    banks[data["code"]] = bank
+                elif data["bank"] and bank.name != data["bank"]:
+                    bank.name = data["bank"]
+                offer = offers.get(data["code"])
+                if offer is None:
+                    offer = Offer(code=data["code"], bank_id=bank.id, name=data["name"], url=data["url"], link_param="sub1", network_status="approved", enabled=True, kind=data["kind"])
+                    s.add(offer)
+                    await s.flush()
+                    s.add(Tier(offer_id=offer.id, payout=data["rate"], cashback=data["rate"], label="Импорт CSV"))
+                    created += 1
+                else:
+                    offer.name = data["name"]
+                    if data["url"]:
+                        offer.url = data["url"]
+                    if data["kind"]:
+                        offer.kind = data["kind"]
+                    tier = (await s.execute(select(Tier).where(Tier.offer_id == offer.id).order_by(Tier.id))).scalars().first()
+                    if tier is None:
+                        s.add(Tier(offer_id=offer.id, payout=data["rate"], cashback=data["rate"], label="Импорт CSV"))
+                    else:
+                        tier.payout = data["rate"]
+                        tier.cashback = data["rate"]
+                    updated += 1
+                if data["condition"] and offer.condition_text != data["condition"]:
+                    offer.condition_text = data["condition"]
+                    offer.action = data["condition"]
+                s.add(OfferEvent(offer_id=offer.id, actor_id=request["uid"], event="imported", details=f"Импорт CSV: ставка {data['rate']} ₽"))
+            await _admin_audit(s, request["uid"], "offer_imported", "offer", f"batch:{len(parsed)}", f"Импорт CSV: создано {created}, обновлено {updated}; коды: {', '.join(codes)[:1500]}")
+            await s.commit()
+        except IntegrityError:
+            await s.rollback()
+            return err("import_conflict", "Конфликт кодов при импорте. Обнови предпросмотр и повтори.", 409)
+        return ok({"dry_run": False, "total": len(preview), "counts": {"create": created, "update": updated, "error": 0}, "rows": preview})
+
+
 async def admin_payout_action(request):
     if request["uid"] not in cfg.admins:
         return err("forbidden", "Нет доступа.", 403)
@@ -1453,6 +1604,7 @@ def setup_tma(app: web.Application, bot):
     r.add_post("/api/v1/admin/broadcasts/send", admin_broadcast_send)
     r.add_put("/api/v1/admin/offers/{id}/enabled", admin_offer_enabled)
     r.add_put("/api/v1/admin/offers/{id}", admin_offer_update)
+    r.add_post("/api/v1/admin/offers/import", admin_offer_import)
     r.add_post("/api/v1/admin/offers", admin_offer_create)
     r.add_post("/api/v1/admin/payouts/{id}/action", admin_payout_action)
     r.add_post("/api/v1/me/accept", me_accept)

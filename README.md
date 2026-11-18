@@ -157,6 +157,10 @@ GET /postback?secret=<POSTBACK_SECRET>&subid=<subid>&status=rejected&payout=0
 
 Допустимые статусы сети: `pending/hold`, `approved/confirmed/accepted/1`, `rejected/declined/cancelled/2`. Названия и формат параметров адаптируй под документацию каждой сети. `payout` — комиссия сети, а не награда пользователю.
 
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) запускается на каждый push и pull request в любую ветку: `backend` — pytest на Python 3.11, `frontend` — `npm ci`, `tsc --noEmit`, тесты и сборка Vite на Node 22. Job `docker` собирает образ `bonvera:ci` только на push в `main` и `feat/**`, без пуша в registry; секреты не используются.
+
 ## Проверки перед передачей в эксплуатацию
 
 ```bash

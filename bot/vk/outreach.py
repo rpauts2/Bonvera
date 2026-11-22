@@ -132,7 +132,8 @@ def preview_contact_import(csv_text: str) -> dict[str, Any]:
 
 def is_marketing_eligible(contact: VkContact) -> bool:
     return bool(
-        contact.marketing_consent_at is not None
+        contact.personal_data_consent_at is not None
+        and contact.marketing_consent_at is not None
         and not contact.marketing_suppressed
     )
 
@@ -270,6 +271,7 @@ async def start_campaign(campaign_id: int, admin_id: int) -> int:
             raise ValueError(",".join(validation["errors"]))
         contacts = (await session.execute(
             select(VkContact).where(
+                VkContact.personal_data_consent_at.is_not(None),
                 VkContact.marketing_consent_at.is_not(None),
                 VkContact.marketing_suppressed == False,
             )

@@ -9,6 +9,7 @@ from aiohttp import web
 from sqlalchemy import func, select
 
 from bot.config import cfg
+from bot.logic import phone_decrypt
 from bot.db import AdminAuditEvent, Session, VkCampaign, VkCampaignRecipient, VkClick, VkConsentEvent, VkContact, VkOfferSlot
 from bot.vk.outreach import (
     commit_contact_import,
@@ -224,7 +225,7 @@ async def vk_admin_contacts(request):
             "vk_user_id": row.vk_user_id,
             "first_name": row.first_name or "",
             "last_name": row.last_name or "",
-            "phone": mask_phone(row.phone_encrypted) if row.phone_encrypted else "",
+            "phone": mask_phone(phone_decrypt(row.phone_encrypted)) if row.phone_encrypted else "",
             "has_phone": bool(row.phone_encrypted),
             "personal_data_consent_at": row.personal_data_consent_at.isoformat() if row.personal_data_consent_at else None,
             "marketing_consent_at": row.marketing_consent_at.isoformat() if row.marketing_consent_at else None,

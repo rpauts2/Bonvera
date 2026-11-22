@@ -50,6 +50,16 @@ def test_vk_callback_rejects_wrong_group_id(monkeypatch):
 
 
 def test_vk_message_event_dispatches_only_after_callback_validation(monkeypatch):
+    from bot.vk import callback
+
+    async def claim(event_id, event_type):
+        return True
+
+    async def finish(event_id, *, success, error_code=""):
+        return None
+
+    monkeypatch.setattr(callback, "claim_callback_event", claim)
+    monkeypatch.setattr(callback, "finish_callback_event", finish)
     monkeypatch.setattr(cfg, "vk_enabled", True)
     monkeypatch.setattr(cfg, "vk_group_id", 12345)
     monkeypatch.setattr(cfg, "vk_callback_secret", "vk-callback-secret")

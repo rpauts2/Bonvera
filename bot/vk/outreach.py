@@ -286,6 +286,7 @@ async def start_campaign(campaign_id: int, admin_id: int) -> int:
             select(VkContact).where(
                 VkContact.personal_data_consent_at.is_not(None),
                 VkContact.marketing_consent_at.is_not(None),
+                VkContact.consent_review_status == "verified",
                 VkContact.marketing_suppressed == False,
             )
         )).scalars().all()

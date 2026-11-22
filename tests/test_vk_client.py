@@ -30,7 +30,7 @@ def test_vk_permission_check_returns_false_when_permission_is_denied():
     async def requester(url, data, timeout):
         return {"response": {"is_allowed": 0}}
 
-    client = VKClient(group_token="token", requester=requester)
+    client = VKClient(group_id=555001, group_token="token", requester=requester)
     assert asyncio.run(client.is_messages_allowed(123)) is False
 
 

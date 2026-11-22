@@ -35,6 +35,7 @@ def test_vk_enabled_requires_group_token_and_callback_secrets(monkeypatch):
     monkeypatch.setattr(cfg, "vk_confirmation", "")
     monkeypatch.setattr(cfg, "vk_public_base_url", "")
     monkeypatch.setattr(cfg, "vk_privacy_url", "")
+    monkeypatch.setattr(cfg, "vk_operator_name", "")
     with pytest.raises(RuntimeError) as exc:
         validate_runtime_config()
     message = str(exc.value)
@@ -44,3 +45,4 @@ def test_vk_enabled_requires_group_token_and_callback_secrets(monkeypatch):
     assert "VK_CONFIRMATION" in message
     assert "VK_PUBLIC_BASE_URL" in message
     assert "VK_PRIVACY_URL" in message
+    assert "VK_OPERATOR_NAME" in message

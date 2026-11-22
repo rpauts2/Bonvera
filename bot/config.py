@@ -44,6 +44,7 @@ class Cfg:
     vk_community_url: str = os.getenv("VK_COMMUNITY_URL", "")
     vk_public_base_url: str = os.getenv("VK_PUBLIC_BASE_URL", "")
     vk_privacy_url: str = os.getenv("VK_PRIVACY_URL", "")
+    vk_operator_name: str = os.getenv("VK_OPERATOR_NAME", "")
 
 cfg = Cfg()
 
@@ -72,6 +73,8 @@ def validate_runtime_config():
             errors.append("VK_CALLBACK_SECRET не заполнен")
         if not cfg.vk_confirmation:
             errors.append("VK_CONFIRMATION не заполнен")
+        if not cfg.vk_operator_name.strip():
+            errors.append("VK_OPERATOR_NAME должен содержать название оператора персональных данных")
         for env_name, value in (
             ("VK_PUBLIC_BASE_URL", cfg.vk_public_base_url),
             ("VK_PRIVACY_URL", cfg.vk_privacy_url),

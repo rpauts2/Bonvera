@@ -143,7 +143,7 @@ async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
     preview = preview_contact_import(csv_text)
     if preview["errors"]:
         raise ValueError("CSV contains invalid rows; fix all errors before importing")
-    created = updated = suppressed = 0
+    created = updated = suppressed = already_verified = 0
     async with Session() as session:
         for item in preview["rows"]:
             contact = (await session.execute(
@@ -152,6 +152,10 @@ async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
             # An explicit prior opt-out is never silently overridden by re-importing an old list.
             if contact is not None and contact.marketing_suppressed:
                 suppressed += 1
+                continue
+            if contact is not None and contact.consent_review_status == "verified":
+                # Do not let an imported CSV overwrite an existing verified consent.
+                already_verified += 1
                 continue
             if contact is None:
                 contact = VkContact(
@@ -195,7 +199,7 @@ async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
                 occurred_at=item["marketing_consent_at"],
             ))
         await session.commit()
-    return {"created": created, "updated": updated, "suppressed": suppressed}
+    return {"created": created, "updated": updated, "suppressed": suppressed, "already_verified": already_verified, "pending_review": created + updated}
 
 
 async def create_campaign_draft(admin_id: int, payload: dict) -> int:

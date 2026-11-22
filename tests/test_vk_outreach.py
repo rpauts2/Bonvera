@@ -49,9 +49,9 @@ def test_contact_import_requires_both_data_and_advertising_consents():
 
 def test_campaign_eligibility_requires_current_opt_in_and_no_suppression():
     now = datetime.now(timezone.utc)
-    allowed = SimpleNamespace(marketing_consent_at=now, marketing_suppressed=False)
-    missing = SimpleNamespace(marketing_consent_at=None, marketing_suppressed=False)
-    suppressed = SimpleNamespace(marketing_consent_at=now, marketing_suppressed=True)
+    allowed = SimpleNamespace(personal_data_consent_at=now, marketing_consent_at=now, marketing_suppressed=False)
+    missing = SimpleNamespace(personal_data_consent_at=now, marketing_consent_at=None, marketing_suppressed=False)
+    suppressed = SimpleNamespace(personal_data_consent_at=now, marketing_consent_at=now, marketing_suppressed=True)
     assert is_marketing_eligible(allowed) is True
     assert is_marketing_eligible(missing) is False
     assert is_marketing_eligible(suppressed) is False

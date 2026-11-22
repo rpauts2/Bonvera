@@ -247,7 +247,9 @@ async def vk_admin_import_preview(request):
     csv_text = body.get("csv_text") if isinstance(body, dict) else None
     preview = preview_contact_import(csv_text or "")
     for row in preview["rows"]:
-        row["consent_at"] = row["consent_at"].isoformat()
+        for field in ("personal_data_consent_at", "marketing_consent_at"):
+            if hasattr(row.get(field), "isoformat"):
+                row[field] = row[field].isoformat()
     return _ok(preview)
 
 

@@ -45,7 +45,7 @@ def test_vk_outreach_migration_is_current_alembic_head():
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == "0011_vk_callback_events"
+    assert script.get_current_head() == "0012_vk_consent_review"
 
 def test_vk_contact_has_manual_import_consent_review_fields():
     table = Base.metadata.tables["vk_contacts"]

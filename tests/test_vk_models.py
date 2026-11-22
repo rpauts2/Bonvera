@@ -17,6 +17,7 @@ def test_vk_outreach_tables_are_registered_in_shared_metadata():
         "vk_clicks",
         "vk_campaigns",
         "vk_campaign_recipients",
+        "vk_callback_events",
     }
     assert expected <= set(Base.metadata.tables)
 
@@ -44,4 +45,4 @@ def test_vk_outreach_migration_is_current_alembic_head():
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == "0010_vk_mfo_outreach"
+    assert script.get_current_head() == "0011_vk_callback_events"

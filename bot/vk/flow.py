@@ -354,6 +354,9 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
             return
 
         if contact.flow_state == "awaiting_phone":
+            if lowered in START_WORDS or action == "show_menu":
+                await _ask_phone(client, user_id, event_id)
+                return
             phone = normalize_vk_phone(text)
             if phone is None:
                 await _send(

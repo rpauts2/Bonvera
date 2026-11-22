@@ -306,6 +306,25 @@ async def vk_admin_campaign_create(request):
     return _ok({"id": campaign_id, "status": "draft"}, 201)
 
 
+async def vk_admin_campaign_entry_link(request):
+    if not _admin(request):
+        return _err("forbidden", "Нет доступа.", 403)
+    try:
+        campaign_id = int(request.match_info["id"])
+    except (TypeError, ValueError):
+        return _err("bad_campaign_id", "Некорректный ID кампании.")
+    async with Session() as session:
+        campaign = await session.get(VkCampaign, campaign_id)
+    if campaign is None:
+        return _err("not_found", "Кампания не найдена.", 404)
+    try:
+        from bot.vk.attribution import build_campaign_entry_link
+        link = build_campaign_entry_link(campaign_id)
+    except ValueError as exc:
+        return _err("vk_community_url_missing", str(exc), 409)
+    return _ok({"campaign_id": campaign_id, "entry_link": link, "ref_source": "bonvera"})
+
+
 async def vk_admin_campaign_preview(request):
     if not _admin(request):
         return _err("forbidden", "Нет доступа.", 403)
@@ -391,6 +410,7 @@ def setup_vk_admin_api(app: web.Application) -> None:
     r.add_post("/api/v1/admin/vk/contacts/import/commit", vk_admin_import_commit)
     r.add_get("/api/v1/admin/vk/campaigns", vk_admin_campaigns_get)
     r.add_post("/api/v1/admin/vk/campaigns", vk_admin_campaign_create)
+    r.add_get("/api/v1/admin/vk/campaigns/{id}/entry-link", vk_admin_campaign_entry_link)
     r.add_post("/api/v1/admin/vk/campaigns/{id}/preview", vk_admin_campaign_preview)
     r.add_post("/api/v1/admin/vk/campaigns/{id}/send", vk_admin_campaign_send)
     r.add_post("/api/v1/admin/vk/campaigns/{id}/pause", vk_admin_campaign_pause)

@@ -134,6 +134,7 @@ def is_marketing_eligible(contact: VkContact) -> bool:
     return bool(
         contact.personal_data_consent_at is not None
         and contact.marketing_consent_at is not None
+        and contact.consent_review_status == "verified"
         and not contact.marketing_suppressed
     )
 
@@ -170,6 +171,9 @@ async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
             contact.marketing_consent_version = item["marketing_consent_version"]
             contact.marketing_consent_source = item["marketing_consent_source"]
             contact.marketing_suppressed = False
+            contact.consent_review_status = "pending_review"
+            contact.consent_reviewed_at = None
+            contact.consent_reviewed_by = None
             session.add(VkConsentEvent(
                 contact_id=contact.id,
                 consent_type="personal_data",
@@ -230,6 +234,7 @@ async def preview_campaign(campaign_id: int) -> dict[str, int]:
             select(func.count(VkContact.id)).where(
                 VkContact.personal_data_consent_at.is_not(None),
                 VkContact.marketing_consent_at.is_not(None),
+                VkContact.consent_review_status == "verified",
                 VkContact.marketing_suppressed == False,
             )
         )).scalar() or 0)
@@ -237,6 +242,7 @@ async def preview_campaign(campaign_id: int) -> dict[str, int]:
             "total_contacts": total,
             "eligible_by_consent": eligible,
             "excluded_by_consent": max(0, total - eligible),
+        "pending_manual_review": int((await session.execute(select(func.count(VkContact.id)).where(VkContact.marketing_consent_at.is_not(None), VkContact.consent_review_status == "pending_review", VkContact.marketing_suppressed == False))).scalar() or 0),
             "campaign_id": campaign_id,
         }
 

@@ -45,6 +45,8 @@ class Cfg:
     vk_public_base_url: str = os.getenv("VK_PUBLIC_BASE_URL", "")
     vk_privacy_url: str = os.getenv("VK_PRIVACY_URL", "")
     vk_operator_name: str = os.getenv("VK_OPERATOR_NAME", "")
+    vk_max_campaign_messages_30d: int = int(os.getenv("VK_MAX_CAMPAIGN_MESSAGES_30D", "4"))
+    vk_min_campaign_interval_hours: int = int(os.getenv("VK_MIN_CAMPAIGN_INTERVAL_HOURS", "24"))
 
 cfg = Cfg()
 
@@ -90,6 +92,10 @@ def validate_runtime_config():
                 errors.append(f"{env_name} должен быть публичным HTTPS URL")
         if cfg.vk_api_timeout_s < 1 or cfg.vk_api_timeout_s > 60:
             errors.append("VK_API_TIMEOUT_S должен быть в диапазоне 1..60")
+        if cfg.vk_max_campaign_messages_30d < 1 or cfg.vk_max_campaign_messages_30d > 30:
+            errors.append("VK_MAX_CAMPAIGN_MESSAGES_30D должен быть в диапазоне 1..30")
+        if cfg.vk_min_campaign_interval_hours < 1 or cfg.vk_min_campaign_interval_hours > 720:
+            errors.append("VK_MIN_CAMPAIGN_INTERVAL_HOURS должен быть в диапазоне 1..720")
         if not cfg.vk_api_version.strip():
             errors.append("VK_API_VERSION не может быть пустым")
     if errors:

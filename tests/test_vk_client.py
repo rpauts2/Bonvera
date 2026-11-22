@@ -12,6 +12,7 @@ async def test_vk_client_uses_configured_version_and_group_token():
         return {"response": {"is_allowed": 1}}
 
     client = VKClient(
+        group_id=555001,
         group_token="vk-test-token",
         api_version="5.199",
         timeout=7,
@@ -21,7 +22,7 @@ async def test_vk_client_uses_configured_version_and_group_token():
     assert captured["url"] == "https://api.vk.com/method/messages.isMessagesFromGroupAllowed"
     assert captured["data"]["access_token"] == "vk-test-token"
     assert captured["data"]["v"] == "5.199"
-    assert captured["data"]["group_id"] > 0
+    assert captured["data"]["group_id"] == 555001
     assert captured["data"]["user_id"] == 987654321
     assert captured["timeout"] == 7
 

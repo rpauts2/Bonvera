@@ -246,7 +246,7 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
             await _ask_personal_data_consent(client, user_id, event_id)
             return
         contact.last_seen_at = datetime.utcnow()
-        if lowered in STOP_WORDS or action == "marketing_opt_out":
+        if lowered in STOP_WORDS or action == "marketing_stop":
             if contact.marketing_consent_at is not None:
                 await _record_consent(
                     session,

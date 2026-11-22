@@ -26,8 +26,7 @@ def test_vk_client_uses_configured_version_and_group_token():
     assert captured["timeout"] == 7
 
 
-@pytest.mark.asyncio
-async def test_vk_permission_check_returns_false_when_permission_is_denied():
+def test_vk_permission_check_returns_false_when_permission_is_denied():
     async def requester(url, data, timeout):
         return {"response": {"is_allowed": 0}}
 

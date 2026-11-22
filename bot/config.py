@@ -63,5 +63,25 @@ def validate_runtime_config():
         pg = os.getenv("POSTGRES_PASSWORD", "")
         if len(pg) < 24 or pg.upper().startswith(("CHANGE_ME", "REPLACE", "GENERATE", "PASTE")):
             errors.append("POSTGRES_PASSWORD должен быть задан (не менее 24 символов)")
+    if cfg.vk_enabled:
+        if cfg.vk_group_id <= 0:
+            errors.append("VK_GROUP_ID должен быть положительным ID сообщества")
+        if not cfg.vk_group_token:
+            errors.append("VK_GROUP_TOKEN не заполнен")
+        if not cfg.vk_callback_secret:
+            errors.append("VK_CALLBACK_SECRET не заполнен")
+        if not cfg.vk_confirmation:
+            errors.append("VK_CONFIRMATION не заполнен")
+        for env_name, value in (
+            ("VK_PUBLIC_BASE_URL", cfg.vk_public_base_url),
+            ("VK_PRIVACY_URL", cfg.vk_privacy_url),
+        ):
+            parsed = urlsplit(value)
+            if parsed.scheme != "https" or not parsed.netloc:
+                errors.append(f"{env_name} должен быть публичным HTTPS URL")
+        if cfg.vk_api_timeout_s < 1 or cfg.vk_api_timeout_s > 60:
+            errors.append("VK_API_TIMEOUT_S должен быть в диапазоне 1..60")
+        if not cfg.vk_api_version.strip():
+            errors.append("VK_API_VERSION не может быть пустым")
     if errors:
         raise RuntimeError("Конфигурация не готова к запуску:\n- " + "\n- ".join(errors))

@@ -417,3 +417,15 @@ class VkClick(Base):
     destination_domain: Mapped[str] = mapped_column(String(255), default="")
     outcome: Mapped[str] = mapped_column(String(24), default="created")
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+
+class VkCallbackEvent(Base):
+    __tablename__ = "vk_callback_events"
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="received", index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    received_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error_code: Mapped[str] = mapped_column(String(80), default="")

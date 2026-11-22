@@ -120,9 +120,9 @@ export default function AdminVk() {
   };
   const commitCsv = async()=>{
     if(!csvPreview||csvPreview.errors.length||!csvPreview.valid_count)return;
-    if(!window.confirm("Импортировать "+csvPreview.valid_count+" VK-контактов для ручной проверки согласий?""))return;
+    if(!window.confirm("Импортировать "+csvPreview.valid_count+" VK-контактов для ручной проверки согласий?"))return;
     setBusy(true);setError("");
-    try{const r=await api.post<{created:number;updated:number;suppressed:number}>("/admin/vk/contacts/import/commit",{csv_text:csv});setNotice("Импорт завершён. Новых: "+r.created+", обновлено: "+r.updated+", уже проверены: "+(r.already_verified||0)+", исключено из-за отписки: "+r.suppressed+". Остальные ждут ручной проверки доказательств. Все импортированные контакты ожидают ручной проверки доказательств.");setCsv("");setCsvPreview(null);await Promise.all([loadContacts(),loadOverview()]);}
+    try{const r=await api.post<{created:number;updated:number;suppressed:number;already_verified?:number;pending_review?:number}>("/admin/vk/contacts/import/commit",{csv_text:csv});setNotice("Импорт завершён. Новых: "+r.created+", обновлено: "+r.updated+", уже проверены: "+(r.already_verified||0)+", исключено из-за отписки: "+r.suppressed+". Остальные ждут ручной проверки доказательств. Все импортированные контакты ожидают ручной проверки доказательств.");setCsv("");setCsvPreview(null);await Promise.all([loadContacts(),loadOverview()]);}
     catch(e){handleError(e);}finally{setBusy(false);}
   };
 

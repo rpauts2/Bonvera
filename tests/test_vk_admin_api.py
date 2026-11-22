@@ -1,4 +1,6 @@
-from bot.vk.admin_api import mask_phone, validate_slots_payload
+from types import SimpleNamespace
+
+from bot.vk.admin_api import consent_evidence_complete, mask_phone, validate_slots_payload
 
 
 def valid_slots():
@@ -49,3 +51,39 @@ def test_admin_slots_reject_enabled_unconfigured_slot():
 def test_phone_is_masked_in_contact_lists():
     assert mask_phone("79001234567") == "+7 *** ***-45-67"
     assert mask_phone("") == ""
+
+def test_consent_evidence_requires_both_separate_grants():
+    personal = SimpleNamespace(
+        consent_type="personal_data",
+        action="granted",
+        proof_reference="privacy-proof",
+        text_version="privacy-v1",
+        source="privacy-form",
+    )
+    marketing = SimpleNamespace(
+        consent_type="marketing",
+        action="granted",
+        proof_reference="marketing-proof",
+        text_version="marketing-v1",
+        source="marketing-form",
+    )
+    assert consent_evidence_complete([personal, marketing]) is True
+    assert consent_evidence_complete([personal]) is False
+
+
+def test_consent_evidence_rejects_empty_or_withdrawn_proof():
+    personal = SimpleNamespace(
+        consent_type="personal_data",
+        action="granted",
+        proof_reference="privacy-proof",
+        text_version="privacy-v1",
+        source="privacy-form",
+    )
+    marketing = SimpleNamespace(
+        consent_type="marketing",
+        action="withdrawn",
+        proof_reference="marketing-proof",
+        text_version="marketing-v1",
+        source="marketing-form",
+    )
+    assert consent_evidence_complete([personal, marketing]) is False

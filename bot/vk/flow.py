@@ -12,6 +12,7 @@ from bot.config import cfg
 from bot.db import Session, VkContact, VkConsentEvent, VkOfferSlot
 from bot.logic import phone_encrypt, phash
 from bot.vk.client import VKClient
+from bot.vk.attribution import parse_campaign_ref
 from bot.vk.tracking import create_click
 
 PERSONAL_DATA_CONSENT_VERSION = "vk-personal-data-2026-11-22-v1"
@@ -152,6 +153,12 @@ async def _show_offer_menu(client: VKClient, contact: VkContact, event_id: str) 
         )).scalars().all()
         contact_id = contact.id
         source = contact.source_campaign or "vk_organic"
+        campaign_id = None
+        if source.startswith("campaign:"):
+            try:
+                campaign_id = int(source.split(":", 1)[1])
+            except ValueError:
+                campaign_id = None
 
     buttons = []
     for slot in slots:
@@ -159,6 +166,7 @@ async def _show_offer_menu(client: VKClient, contact: VkContact, event_id: str) 
             tracked_url = await create_click(
                 contact_id=contact_id,
                 slot_number=slot.slot_number,
+                campaign_id=campaign_id,
                 source=source,
             )
         except (ValueError, RuntimeError):
@@ -227,6 +235,7 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
     text = str(message.get("text", "") or "").strip()
     lowered = text.casefold()
     action = payload_action(message)
+    campaign_ref_id = parse_campaign_ref(message.get("ref"))
     client = VKClient()
 
     async with Session() as session:
@@ -239,6 +248,7 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
                 first_name=str(message.get("first_name") or "")[:128] or None,
                 last_name=str(message.get("last_name") or "")[:128] or None,
                 flow_state="awaiting_personal_data_consent",
+                source_campaign=("campaign:" + str(campaign_ref_id)) if campaign_ref_id else "vk_organic",
             )
             session.add(contact)
             await session.commit()
@@ -246,6 +256,8 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
             await _ask_personal_data_consent(client, user_id, event_id)
             return
         contact.last_seen_at = datetime.utcnow()
+        if campaign_ref_id is not None:
+            contact.source_campaign = "campaign:" + str(campaign_ref_id)
         if lowered in STOP_WORDS or action == "marketing_stop":
             if contact.marketing_consent_at is not None:
                 await _record_consent(

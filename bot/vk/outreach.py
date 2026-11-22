@@ -228,6 +228,7 @@ async def preview_campaign(campaign_id: int) -> dict[str, int]:
         total = int((await session.execute(select(func.count(VkContact.id)))).scalar() or 0)
         eligible = int((await session.execute(
             select(func.count(VkContact.id)).where(
+                VkContact.personal_data_consent_at.is_not(None),
                 VkContact.marketing_consent_at.is_not(None),
                 VkContact.marketing_suppressed == False,
             )
@@ -242,6 +243,8 @@ async def preview_campaign(campaign_id: int) -> dict[str, int]:
 
 async def start_campaign(campaign_id: int, admin_id: int) -> int:
     """Queue eligible contacts after an explicit administrator send action."""
+    if not cfg.vk_enabled:
+        raise ValueError("VK channel is disabled; configure VK credentials before sending")
     async with Session() as session:
         campaign = (await session.execute(
             select(VkCampaign).where(VkCampaign.id == campaign_id).with_for_update()
@@ -330,6 +333,8 @@ async def _update_recipient(recipient_id: int, status: str, *, error_code: str =
 
 async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
     """Send a small durable batch; permissions and consent are rechecked per recipient."""
+    if not cfg.vk_enabled:
+        return {"processed": 0, "sent": 0, "skipped": 0, "failed": 0}
     batch_size = max(1, min(int(batch_size), 50))
     now = datetime.utcnow()
     processed = sent = skipped = failed = 0

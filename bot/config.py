@@ -73,6 +73,12 @@ def validate_runtime_config():
             errors.append("VK_CALLBACK_SECRET не заполнен")
         if not cfg.vk_confirmation:
             errors.append("VK_CONFIRMATION не заполнен")
+        community = urlsplit(cfg.vk_community_url)
+        community_host = (community.hostname or "").lower()
+        vk_me_ok = community.scheme == "https" and community_host == "vk.me" and re.fullmatch(r"/[A-Za-z0-9_.-]{2,64}/?", community.path or "") is not None
+        vk_write_ok = community.scheme == "https" and community_host in {"vk.com", "www.vk.com"} and re.fullmatch(r"/write-[1-9][0-9]{2,15}", community.path or "") is not None
+        if not (vk_me_ok or vk_write_ok):
+            errors.append("VK_COMMUNITY_URL должен быть https://vk.me/{community} или https://vk.com/write-{group_id}")
         if not cfg.vk_operator_name.strip():
             errors.append("VK_OPERATOR_NAME должен содержать название оператора персональных данных")
         for env_name, value in (

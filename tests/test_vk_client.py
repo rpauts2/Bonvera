@@ -34,8 +34,7 @@ def test_vk_permission_check_returns_false_when_permission_is_denied():
     assert asyncio.run(client.is_messages_allowed(123)) is False
 
 
-@pytest.mark.asyncio
-async def test_vk_send_uses_stable_random_id_and_serialized_keyboard():
+def test_vk_send_uses_stable_random_id_and_serialized_keyboard():
     import json
 
     captured = {}
@@ -58,8 +57,7 @@ async def test_vk_send_uses_stable_random_id_and_serialized_keyboard():
     assert captured["data"]["peer_id"] == 123
 
 
-@pytest.mark.asyncio
-async def test_vk_api_error_does_not_leak_access_token():
+def test_vk_api_error_does_not_leak_access_token():
     async def requester(url, data, timeout):
         return {
             "error": {

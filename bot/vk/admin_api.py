@@ -33,6 +33,18 @@ def _admin(request) -> bool:
     return request.get("uid") in cfg.admins
 
 
+def consent_evidence_complete(events) -> bool:
+    evidence_types = {
+        event.consent_type
+        for event in events
+        if event.action == "granted"
+        and event.proof_reference
+        and event.text_version
+        and event.source
+    }
+    return {"personal_data", "marketing"} <= evidence_types
+
+
 def mask_phone(value: str | None) -> str:
     if not value:
         return ""
@@ -291,15 +303,10 @@ async def vk_admin_contact_consent_review(request):
                 VkConsentEvent.consent_type.in_(["personal_data", "marketing"]),
             )
         )).scalars().all()
-        proof_by_type = {
-            event.consent_type: event
-            for event in consent_events
-            if event.proof_reference and event.text_version and event.source
-        }
         if action == "approve":
             if not contact.personal_data_consent_at or not contact.marketing_consent_at:
                 return _err("consent_missing", "Не зафиксированы оба согласия.", 409)
-            if set(proof_by_type) != {"personal_data", "marketing"}:
+            if not consent_evidence_complete(consent_events):
                 return _err("consent_evidence_missing", "Нет доказательств обоих согласий. Допуск запрещён.", 409)
             contact.consent_review_status = "verified"
             contact.marketing_suppressed = False

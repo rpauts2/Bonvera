@@ -152,7 +152,16 @@ def make_web(bot):
         return web.json_response(payload, status=200 if payload["ok"] else 503)
     app.router.add_get("/health", health)
     from bot.vk.callback import handle_vk_callback
+    from bot.vk.tracking import resolve_click
     app.router.add_post("/vk/callback", handle_vk_callback)
+
+    async def vk_go(req):
+        target = await resolve_click(req.match_info.get("token", ""))
+        if not target:
+            return web.Response(text="Ссылка недоступна или истекла.", status=404)
+        raise web.HTTPFound(target)
+
+    app.router.add_get("/vk/go/{token}", vk_go)
     from bot.tma_api import setup_tma
     setup_tma(app, bot)
     return app

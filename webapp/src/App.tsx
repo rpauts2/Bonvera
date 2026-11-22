@@ -25,6 +25,7 @@ const Support = lazy(() => import("./pages/Support"));
 const Rules = lazy(() => import("./pages/Rules"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminVk = lazy(() => import("./pages/AdminVk"));
 
 const TAB_PATHS = ["/", "/tasks", "/catalog", "/friends", "/profile"];
 
@@ -35,6 +36,7 @@ function Shell() {
 
   if (location.pathname === "/admin/login") return <Suspense fallback={<BootScreen />}><AdminLogin /></Suspense>;
   if (location.pathname === "/admin") return <Suspense fallback={<BootScreen />}><Admin /></Suspense>;
+  if (location.pathname === "/admin/vk") return <Suspense fallback={<BootScreen />}><AdminVk /></Suspense>;
 
   if (!ready) return <BootScreen />;
   if (error && !user) return <ErrorScreen message={error} />;

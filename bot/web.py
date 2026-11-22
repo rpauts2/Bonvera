@@ -151,6 +151,17 @@ def make_web(bot):
         payload["ok"] = bool(payload["db_live"] and payload.get("ok", True))
         return web.json_response(payload, status=200 if payload["ok"] else 503)
     app.router.add_get("/health", health)
+    from bot.vk.callback import handle_vk_callback
+    from bot.vk.tracking import resolve_click
+    app.router.add_post("/vk/callback", handle_vk_callback)
+
+    async def vk_go(req):
+        target = await resolve_click(req.match_info.get("token", ""))
+        if not target:
+            return web.Response(text="Ссылка недоступна или истекла.", status=404)
+        raise web.HTTPFound(target)
+
+    app.router.add_get("/vk/go/{token}", vk_go)
     from bot.tma_api import setup_tma
     setup_tma(app, bot)
     return app
@@ -295,4 +306,28 @@ def make_scheduler(bot):
     sch.add_job(booking_expiring_job, "interval", hours=1, id="booking_expiring", jitter=120)
 
     sch.add_job(watchdog, "interval", minutes=max(1, cfg.health_interval_min), id="watchdog", args=[bot])
+
+    if cfg.vk_enabled:
+        async def vk_campaign_worker():
+            try:
+                from bot.vk.outreach import dispatch_campaign_batch
+                result = await dispatch_campaign_batch(batch_size=10)
+                if result.get("processed"):
+                    logging.info(
+                        "vk_campaign_batch processed=%s sent=%s skipped=%s failed=%s",
+                        result.get("processed"), result.get("sent"),
+                        result.get("skipped"), result.get("failed"),
+                    )
+            except Exception:
+                logging.exception("VK campaign dispatcher failed")
+
+        sch.add_job(
+            vk_campaign_worker,
+            "interval",
+            seconds=15,
+            id="vk_campaign_dispatcher",
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=30,
+        )
     return sch

@@ -1607,6 +1607,8 @@ def setup_tma(app: web.Application, bot):
     r.add_post("/api/v1/admin/offers/import", admin_offer_import)
     r.add_post("/api/v1/admin/offers", admin_offer_create)
     r.add_post("/api/v1/admin/payouts/{id}/action", admin_payout_action)
+    from bot.vk.admin_api import setup_vk_admin_api
+    setup_vk_admin_api(app)
     r.add_post("/api/v1/me/accept", me_accept)
     r.add_put("/api/v1/me/age", me_age)
     r.add_put("/api/v1/me/sbp", me_sbp)

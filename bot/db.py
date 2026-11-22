@@ -1,7 +1,7 @@
 from datetime import datetime
 import asyncio
 from pathlib import Path
-from sqlalchemy import BigInteger, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON, func, select, inspect, UniqueConstraint
+from sqlalchemy import BigInteger, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON, func, select, inspect, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from bot.config import cfg
@@ -300,3 +300,135 @@ class ProofFingerprint(Base):
     __table_args__ = (
         UniqueConstraint("offer_id", "phash", name="uq_proof_fingerprint_offer_phash"),
     )
+
+
+
+# VK acquisition channel. These identities are intentionally separate from Telegram User IDs.
+class VkContact(Base):
+    __tablename__ = "vk_contacts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vk_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    phone_encrypted: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    phone_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    flow_state: Mapped[str] = mapped_column(String(40), default="awaiting_personal_data_consent")
+    personal_data_consent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    personal_data_consent_version: Mapped[str] = mapped_column(String(40), default="")
+    marketing_consent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    marketing_consent_version: Mapped[str] = mapped_column(String(40), default="")
+    marketing_consent_source: Mapped[str] = mapped_column(String(120), default="")
+    marketing_suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
+    consent_review_status: Mapped[str] = mapped_column(String(24), default="pending_review")
+    consent_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    consent_reviewed_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_campaign: Mapped[str] = mapped_column(String(80), default="")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class VkConsentEvent(Base):
+    __tablename__ = "vk_consent_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_id: Mapped[int] = mapped_column(ForeignKey("vk_contacts.id"), index=True)
+    consent_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    text_version: Mapped[str] = mapped_column(String(40), default="")
+    source: Mapped[str] = mapped_column(String(120), default="")
+    proof_reference: Mapped[str] = mapped_column(String(255), default="")
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class VkOfferSlot(Base):
+    __tablename__ = "vk_offer_slots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slot_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    advertiser_name: Mapped[str] = mapped_column(String(160), default="")
+    title: Mapped[str] = mapped_column(String(160), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    target_url: Mapped[str] = mapped_column(Text, default="")
+    tracking_param: Mapped[str] = mapped_column(String(40), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint("slot_number", name="uq_vk_offer_slots_slot_number"),
+        CheckConstraint("slot_number BETWEEN 1 AND 5", name="ck_vk_offer_slots_number"),
+        CheckConstraint(
+            "(slot_number BETWEEN 1 AND 4 AND kind = 'mfo_offer') OR "
+            "(slot_number = 5 AND kind = 'storefront')",
+            name="ck_vk_offer_slots_kind",
+        ),
+    )
+
+
+class VkCampaign(Base):
+    __tablename__ = "vk_campaigns"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    admin_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    cta_label: Mapped[str] = mapped_column(String(80), default="Начать")
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    audience_type: Mapped[str] = mapped_column(String(32), default="opted_in")
+    advertiser_name: Mapped[str] = mapped_column(String(200), default="")
+    advertiser_inn: Mapped[str] = mapped_column(String(20), default="")
+    warning_text: Mapped[str] = mapped_column(String(240), default="Оценивайте свои финансовые возможности и риски.")
+    erid: Mapped[str] = mapped_column(String(120), default="")
+    targeting_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recipient_count: Mapped[int] = mapped_column(Integer, default=0)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class VkCampaignRecipient(Base):
+    __tablename__ = "vk_campaign_recipients"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("vk_campaigns.id"), index=True)
+    contact_id: Mapped[int] = mapped_column(ForeignKey("vk_contacts.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True)
+    last_error_code: Mapped[str] = mapped_column(String(80), default="")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "contact_id", name="uq_vk_campaign_recipient"),
+    )
+
+
+class VkClick(Base):
+    __tablename__ = "vk_clicks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    contact_id: Mapped[int | None] = mapped_column(ForeignKey("vk_contacts.id"), index=True, nullable=True)
+    slot_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("vk_campaigns.id"), index=True, nullable=True)
+    source: Mapped[str] = mapped_column(String(80), default="")
+    destination_domain: Mapped[str] = mapped_column(String(255), default="")
+    outcome: Mapped[str] = mapped_column(String(24), default="created")
+    created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+
+class VkCallbackEvent(Base):
+    __tablename__ = "vk_callback_events"
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="received", index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    received_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error_code: Mapped[str] = mapped_column(String(80), default="")

@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 load_dotenv()
@@ -32,6 +33,20 @@ class Cfg:
     # Мониторинг: как часто проверять живость сервиса и когда слать алерт админам.
     health_interval_min: int = int(os.getenv("HEALTH_INTERVAL_MIN", "5"))
     health_alert_cooldown_min: int = int(os.getenv("HEALTH_ALERT_COOLDOWN_MIN", "30"))
+    # VK acquisition channel is completely optional until a community is configured.
+    vk_enabled: bool = _b("VK_ENABLED", "false")
+    vk_group_id: int = int(os.getenv("VK_GROUP_ID", "0") or 0)
+    vk_group_token: str = os.getenv("VK_GROUP_TOKEN", "")
+    vk_callback_secret: str = os.getenv("VK_CALLBACK_SECRET", "")
+    vk_confirmation: str = os.getenv("VK_CONFIRMATION", "")
+    vk_api_version: str = os.getenv("VK_API_VERSION", "5.199")
+    vk_api_timeout_s: int = int(os.getenv("VK_API_TIMEOUT_S", "10"))
+    vk_community_url: str = os.getenv("VK_COMMUNITY_URL", "")
+    vk_public_base_url: str = os.getenv("VK_PUBLIC_BASE_URL", "")
+    vk_privacy_url: str = os.getenv("VK_PRIVACY_URL", "")
+    vk_operator_name: str = os.getenv("VK_OPERATOR_NAME", "")
+    vk_max_campaign_messages_30d: int = int(os.getenv("VK_MAX_CAMPAIGN_MESSAGES_30D", "4"))
+    vk_min_campaign_interval_hours: int = int(os.getenv("VK_MIN_CAMPAIGN_INTERVAL_HOURS", "24"))
 
 cfg = Cfg()
 
@@ -51,5 +66,37 @@ def validate_runtime_config():
         pg = os.getenv("POSTGRES_PASSWORD", "")
         if len(pg) < 24 or pg.upper().startswith(("CHANGE_ME", "REPLACE", "GENERATE", "PASTE")):
             errors.append("POSTGRES_PASSWORD должен быть задан (не менее 24 символов)")
+    if cfg.vk_enabled:
+        if cfg.vk_group_id <= 0:
+            errors.append("VK_GROUP_ID должен быть положительным ID сообщества")
+        if not cfg.vk_group_token:
+            errors.append("VK_GROUP_TOKEN не заполнен")
+        if not cfg.vk_callback_secret:
+            errors.append("VK_CALLBACK_SECRET не заполнен")
+        if not cfg.vk_confirmation:
+            errors.append("VK_CONFIRMATION не заполнен")
+        community = urlsplit(cfg.vk_community_url)
+        community_host = (community.hostname or "").lower()
+        vk_me_ok = community.scheme == "https" and community_host == "vk.me" and re.fullmatch(r"/[A-Za-z0-9_.-]{2,64}/?", community.path or "") is not None
+        vk_write_ok = community.scheme == "https" and community_host in {"vk.com", "www.vk.com"} and re.fullmatch(r"/write-[1-9][0-9]{2,15}", community.path or "") is not None
+        if not (vk_me_ok or vk_write_ok):
+            errors.append("VK_COMMUNITY_URL должен быть https://vk.me/{community} или https://vk.com/write-{group_id}")
+        if not cfg.vk_operator_name.strip():
+            errors.append("VK_OPERATOR_NAME должен содержать название оператора персональных данных")
+        for env_name, value in (
+            ("VK_PUBLIC_BASE_URL", cfg.vk_public_base_url),
+            ("VK_PRIVACY_URL", cfg.vk_privacy_url),
+        ):
+            parsed = urlsplit(value)
+            if parsed.scheme != "https" or not parsed.netloc:
+                errors.append(f"{env_name} должен быть публичным HTTPS URL")
+        if cfg.vk_api_timeout_s < 1 or cfg.vk_api_timeout_s > 60:
+            errors.append("VK_API_TIMEOUT_S должен быть в диапазоне 1..60")
+        if cfg.vk_max_campaign_messages_30d < 1 or cfg.vk_max_campaign_messages_30d > 30:
+            errors.append("VK_MAX_CAMPAIGN_MESSAGES_30D должен быть в диапазоне 1..30")
+        if cfg.vk_min_campaign_interval_hours < 1 or cfg.vk_min_campaign_interval_hours > 720:
+            errors.append("VK_MIN_CAMPAIGN_INTERVAL_HOURS должен быть в диапазоне 1..720")
+        if not cfg.vk_api_version.strip():
+            errors.append("VK_API_VERSION не может быть пустым")
     if errors:
         raise RuntimeError("Конфигурация не готова к запуску:\n- " + "\n- ".join(errors))

@@ -93,6 +93,20 @@ export default function AdminVk() {
     try{const r=await api.post<{queued:number}>("/admin/vk/campaigns/"+draftId+"/send",{confirm:true});setNotice("Кампания запущена. В очереди: "+r.queued);setCampaignPreview(null);await Promise.all([loadCampaigns(),loadOverview()]);}
     catch(e){handleError(e);}finally{setBusy(false);}
   };
+  const reviewContact = async(contact:Record<string,unknown>,action:"approve"|"reject")=>{
+    const id=Number(contact.id);
+    if(!Number.isInteger(id)||id<=0)return;
+    const question=action==="approve"
+      ?"Подтвердить, что ты проверил доказательства отдельного согласия на обработку данных и на рекламу?"
+      :"Отклонить доказательства и навсегда исключить этот контакт из рекламных кампаний?";
+    if(!window.confirm(question))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      await api.post("/admin/vk/contacts/"+id+"/consent-review",{confirm:true,action});
+      setNotice(action==="approve"?"Согласия проверены. Контакт допущен к рекламным кампаниям.":"Доказательства отклонены. Контакт исключён из рекламы.");
+      await Promise.all([loadContacts(),loadOverview()]);
+    }catch(e){handleError(e);}finally{setBusy(false);}
+  };
   const campaignAction = async(c:Campaign,action:"pause"|"resume")=>{
     if(action==="resume"&&!window.confirm("Возобновить рассылку оставшимся подходящим получателям?"))return;
     setBusy(true);setError("");
@@ -106,9 +120,9 @@ export default function AdminVk() {
   };
   const commitCsv = async()=>{
     if(!csvPreview||csvPreview.errors.length||!csvPreview.valid_count)return;
-    if(!window.confirm("Импортировать "+csvPreview.valid_count+" VK-контактов с подтверждёнными согласиями?"))return;
+    if(!window.confirm("Импортировать "+csvPreview.valid_count+" VK-контактов для ручной проверки согласий?""))return;
     setBusy(true);setError("");
-    try{const r=await api.post<{created:number;updated:number;suppressed:number}>("/admin/vk/contacts/import/commit",{csv_text:csv});setNotice("Импорт завершён. Новых: "+r.created+", обновлено: "+r.updated+", исключено из-за отписки: "+r.suppressed+".");setCsv("");setCsvPreview(null);await Promise.all([loadContacts(),loadOverview()]);}
+    try{const r=await api.post<{created:number;updated:number;suppressed:number}>("/admin/vk/contacts/import/commit",{csv_text:csv});setNotice("Импорт завершён. Новых: "+r.created+", обновлено: "+r.updated+", исключено из-за отписки: "+r.suppressed+". Все импортированные контакты ожидают ручной проверки доказательств.");setCsv("");setCsvPreview(null);await Promise.all([loadContacts(),loadOverview()]);}
     catch(e){handleError(e);}finally{setBusy(false);}
   };
 
@@ -170,14 +184,28 @@ export default function AdminVk() {
     </section>}
 
     {tab==="contacts"&&<section className="grid gap-5 xl:grid-cols-2">
-      <article className={panel+" p-5"}><h2 className="text-lg font-extrabold">Импорт списка VK-пользователей</h2><p className="mt-1 text-xs leading-5 text-indigo-200/55">Нужны VK ID и отдельные доказательства согласия на обработку персональных данных и рекламные сообщения. Телефонный список сам по себе не позволяет отправлять сообщения VK.</p>
+      <article className={panel+" p-5"}><h2 className="text-lg font-extrabold">Импорт списка VK-пользователей</h2><p className="mt-1 text-xs leading-5 text-indigo-200/55">Нужны VK ID и отдельные доказательства согласия на обработку данных и рекламу. После импорта каждый контакт получит статус «Ожидает проверки» — администратор должен посмотреть оба доказательства и вручную допустить контакт к рекламным кампаниям. Телефонный список сам по себе не позволяет отправлять сообщения VK.</p>
         <textarea className={field+" mt-4 min-h-[240px] resize-y font-mono text-[11px] leading-5"} value={csv} onChange={e=>{setCsv(e.target.value);setCsvPreview(null);}} placeholder="vk_user_id,personal_data_consent_at,personal_data_consent_source,personal_data_consent_version,personal_data_consent_proof,marketing_consent_at,marketing_consent_source,marketing_consent_version,marketing_consent_proof" />
         <div className="mt-3 flex flex-wrap gap-2"><button disabled={busy||!csv.trim()} onClick={()=>void previewCsv()} className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-2.5 text-xs font-bold text-cyan-100 disabled:opacity-40">Проверить список</button><button disabled={busy||!csvPreview||csvPreview.errors.length>0||csvPreview.valid_count===0} onClick={()=>void commitCsv()} className="rounded-xl bg-emerald-400/15 px-4 py-2.5 text-xs font-extrabold text-emerald-100 disabled:opacity-40">Импортировать</button></div>
         {csvPreview&&<div className="mt-4 rounded-xl bg-white/[.04] p-3 text-xs"><div className="flex flex-wrap gap-3"><span>Всего: <b>{csvPreview.total}</b></span><span>Готово: <b>{csvPreview.valid_count}</b></span><span>Дубликаты: <b>{csvPreview.duplicate_count}</b></span><span>Ошибки: <b>{csvPreview.errors.length}</b></span></div>{csvPreview.errors.length>0&&<div className="mt-3 max-h-36 space-y-1 overflow-auto text-rose-200">{csvPreview.errors.slice(0,20).map(e=><p key={e.line}>Строка {e.line}: {e.reason}</p>)}</div>}</div>}
       </article>
       <article className={panel+" p-5"}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">Контакты VK</h2><p className="text-xs text-indigo-200/45">Сведения о телефонах показываются только в маскированном виде.</p></div><button onClick={()=>void loadContacts().catch(handleError)} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Обновить</button></div>
         <form className="mt-3 flex gap-2" onSubmit={e=>{e.preventDefault();void loadContacts().catch(handleError);}}><input className={field+" mt-0"} value={contactQuery} onChange={e=>setContactQuery(e.target.value)} placeholder="Поиск по VK ID"/><button className="rounded-xl bg-white/5 px-3 text-xs font-bold">Найти</button></form>
-        <div className="mt-4 max-h-[470px] space-y-2 overflow-auto">{contacts.map(x=><div key={String(x.vk_user_id)} className="rounded-xl bg-white/[.03] p-3"><div className="flex items-center justify-between gap-2"><b className="text-xs">VK ID {String(x.vk_user_id)}</b><span className={"text-[10px] font-bold "+(Boolean(x.marketing_consent_at)&&!Boolean(x.marketing_suppressed)?"text-emerald-200":"text-amber-200")}>{Boolean(x.marketing_consent_at)&&!Boolean(x.marketing_suppressed)?"Реклама разрешена":"Не включён в рекламу"}</span></div><div className="mt-1 text-[11px] text-indigo-200/50">{String(x.first_name||"")} {String(x.last_name||"")} · {String(x.phone||"Телефон не указан")}</div></div>)}{contacts.length===0&&<p className="py-10 text-center text-xs text-indigo-200/40">Контактов пока нет.</p>}</div>
+        <div className="mt-4 max-h-[570px] space-y-2 overflow-auto">{contacts.map(x=>{
+          const review=String(x.consent_review_status||"pending_review");
+          const pd=x.personal_data_evidence as {source?:string;version?:string;proof_reference?:string}|null;
+          const mk=x.marketing_evidence as {source?:string;version?:string;proof_reference?:string}|null;
+          const status=review==="verified"?"Допущен к рекламе":review==="rejected"?"Доказательства отклонены":review==="not_opted_in"?"Нет рекламного согласия":"Ожидает ручной проверки";
+          return <div key={String(x.vk_user_id)} className="rounded-xl border border-white/[.06] bg-white/[.03] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><b className="text-xs">VK ID {String(x.vk_user_id)}</b><span className={"text-[10px] font-bold "+(review==="verified"?"text-emerald-200":review==="rejected"||review==="not_opted_in"?"text-rose-200":"text-amber-200")}>{status}</span></div>
+            <div className="mt-1 text-[11px] text-indigo-200/50">{String(x.first_name||"")} {String(x.last_name||"")} · {String(x.phone||"Телефон не указан")}</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg bg-black/20 p-2 text-[10px] leading-4"><b className="text-indigo-100/70">Обработка данных</b><div className="mt-1 break-all text-indigo-200/45">{String(pd?.source||"нет источника")} · {String(pd?.version||"нет версии")}</div><div className="break-all text-indigo-200/35">Доказательство: {String(pd?.proof_reference||"не указано")}</div></div>
+              <div className="rounded-lg bg-black/20 p-2 text-[10px] leading-4"><b className="text-indigo-100/70">Рекламные сообщения</b><div className="mt-1 break-all text-indigo-200/45">{String(mk?.source||"нет источника")} · {String(mk?.version||"нет версии")}</div><div className="break-all text-indigo-200/35">Доказательство: {String(mk?.proof_reference||"не указано")}</div></div>
+            </div>
+            {review==="pending_review"&&<div className="mt-3 flex flex-wrap gap-2"><button disabled={busy} onClick={()=>void reviewContact(x,"approve")} className="rounded-lg bg-emerald-400/15 px-3 py-2 text-[10px] font-bold text-emerald-100 disabled:opacity-40">Проверил доказательства — допустить</button><button disabled={busy} onClick={()=>void reviewContact(x,"reject")} className="rounded-lg border border-rose-300/15 px-3 py-2 text-[10px] font-bold text-rose-200 disabled:opacity-40">Отклонить</button></div>}
+          </div>;
+        })}{contacts.length===0&&<p className="py-10 text-center text-xs text-indigo-200/40">Контактов пока нет.</p>}</div>
       </article>
     </section>}
 

@@ -4,7 +4,7 @@ import { ApiError, api } from "../lib/api";
 
 type Slot = { slot_number:number; kind:"mfo_offer"|"storefront"; advertiser_name:string; title:string; description:string; target_url:string; tracking_param:string; enabled:boolean };
 type Campaign = { id:number; name:string; status:string; advertiser_name:string; recipient_count:number; sent_count:number; skipped_count:number; failed_count:number; erid:string; created:string|null };
-type Overview = { vk_enabled:boolean; contacts_total:number; marketing_opt_in:number; suppressed:number; campaigns_total:number; clicks_total:number; configured_slots:number; slots_total:number; community_url:string; campaigns:Campaign[] };
+type Overview = { vk_enabled:boolean; contacts_total:number; marketing_opt_in:number; pending_manual_review:number; suppressed:number; campaigns_total:number; clicks_total:number; configured_slots:number; slots_total:number; community_url:string; campaigns:Campaign[] };
 type Preview = { total:number; valid_count:number; duplicate_count:number; rows:Array<Record<string,unknown>>; errors:Array<{line:number;reason:string}> };
 type CampaignPreview = { campaign_id:number; total_contacts:number; eligible_by_consent:number; excluded_by_consent:number };
 
@@ -122,7 +122,7 @@ export default function AdminVk() {
     if(!csvPreview||csvPreview.errors.length||!csvPreview.valid_count)return;
     if(!window.confirm("Импортировать "+csvPreview.valid_count+" VK-контактов для ручной проверки согласий?""))return;
     setBusy(true);setError("");
-    try{const r=await api.post<{created:number;updated:number;suppressed:number}>("/admin/vk/contacts/import/commit",{csv_text:csv});setNotice("Импорт завершён. Новых: "+r.created+", обновлено: "+r.updated+", исключено из-за отписки: "+r.suppressed+". Все импортированные контакты ожидают ручной проверки доказательств.");setCsv("");setCsvPreview(null);await Promise.all([loadContacts(),loadOverview()]);}
+    try{const r=await api.post<{created:number;updated:number;suppressed:number}>("/admin/vk/contacts/import/commit",{csv_text:csv});setNotice("Импорт завершён. Новых: "+r.created+", обновлено: "+r.updated+", уже проверены: "+(r.already_verified||0)+", исключено из-за отписки: "+r.suppressed+". Остальные ждут ручной проверки доказательств. Все импортированные контакты ожидают ручной проверки доказательств.");setCsv("");setCsvPreview(null);await Promise.all([loadContacts(),loadOverview()]);}
     catch(e){handleError(e);}finally{setBusy(false);}
   };
 
@@ -144,7 +144,7 @@ export default function AdminVk() {
     </nav>
 
     {tab==="overview"&&overview&&<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {[["Контакты VK",overview.contacts_total],["Согласились на рекламу",overview.marketing_opt_in],["Отписались / исключены",overview.suppressed],["Переходы по ссылкам",overview.clicks_total]].map(([title,value])=><article className={panel+" p-5"} key={String(title)}><div className="text-xs text-indigo-200/50">{title}</div><div className="mt-3 text-3xl font-black tabular-nums">{Number(value).toLocaleString("ru-RU")}</div></article>)}
+      {[["Контакты VK",overview.contacts_total],["Допущены к рекламе",overview.marketing_opt_in],["На ручной проверке",overview.pending_manual_review],["Отписались / исключены",overview.suppressed],["Переходы по ссылкам",overview.clicks_total]].map(([title,value])=><article className={panel+" p-5"} key={String(title)}><div className="text-xs text-indigo-200/50">{title}</div><div className="mt-3 text-3xl font-black tabular-nums">{Number(value).toLocaleString("ru-RU")}</div></article>)}
       <article className={panel+" p-5 sm:col-span-2 xl:col-span-4"}>
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">Состояние канала</h2><p className="mt-1 text-xs text-indigo-200/55">Настроено ссылок: {overview.configured_slots}/5 · кампаний: {overview.campaigns_total}</p></div><span className={"rounded-full px-3 py-1.5 text-xs font-bold "+(overview.vk_enabled?"bg-emerald-400/10 text-emerald-200":"bg-amber-300/10 text-amber-200")}>{overview.vk_enabled?"VK включён":"VK выключен"}</span></div>
         {!overview.vk_enabled&&<p className="mt-4 rounded-xl border border-amber-300/15 bg-amber-300/[.05] p-3 text-xs leading-5 text-amber-100/75">VK-бот пока не активен. Нужно настроить сообщество VK, Callback API, group token и публичный HTTPS в серверных переменных. Telegram продолжает работать независимо.</p>}

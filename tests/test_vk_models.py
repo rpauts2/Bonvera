@@ -2,6 +2,8 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from sqlalchemy import UniqueConstraint
+
 from bot.db import Base
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +26,7 @@ def test_vk_offer_slots_have_a_unique_slot_number():
     unique_columns = {
         tuple(column.name for column in constraint.columns)
         for constraint in table.constraints
-        if getattr(constraint, "unique", False)
+        if isinstance(constraint, UniqueConstraint)
     }
     assert ("slot_number",) in unique_columns
 

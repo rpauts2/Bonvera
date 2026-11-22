@@ -19,7 +19,7 @@ from bot.db import (
     VkContact,
 )
 from bot.vk.client import VKAPIError, VKClient
-from bot.vk.copy_policy import validate_campaign_copy
+from bot.vk.copy_policy import validate_campaign_copy, validate_campaign_launch
 
 CONSENT_COLUMNS = {
     "vk_user_id",
@@ -220,15 +220,25 @@ async def start_campaign(campaign_id: int, admin_id: int) -> int:
             raise LookupError("Campaign not found")
         if campaign.admin_id != int(admin_id):
             raise PermissionError("Campaign belongs to another administrator")
-        validation = validate_campaign_copy(
+        if campaign.status not in {"draft", "paused"}:
+            raise ValueError("Campaign cannot be started from current state")
+        from bot.db import VkOfferSlot
+        slots = (await session.execute(
+            select(VkOfferSlot).where(
+                VkOfferSlot.enabled == True,
+                VkOfferSlot.target_url != "",
+            )
+        )).scalars().all()
+        validation = validate_campaign_launch(
             campaign.text,
             advertiser_name=campaign.advertiser_name,
+            advertiser_inn=campaign.advertiser_inn,
+            erid=campaign.erid,
             warning_text=campaign.warning_text,
+            configured_slots=len({slot.slot_number for slot in slots}),
         )
         if not validation["ok"]:
             raise ValueError(",".join(validation["errors"]))
-        if campaign.status not in {"draft", "paused"}:
-            raise ValueError("Campaign cannot be started from current state")
         contacts = (await session.execute(
             select(VkContact).where(
                 VkContact.marketing_consent_at.is_not(None),
@@ -336,6 +346,8 @@ async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
                 "id": campaign.id,
                 "text": campaign.text,
                 "advertiser_name": campaign.advertiser_name,
+                "advertiser_inn": campaign.advertiser_inn,
+                "erid": campaign.erid,
                 "warning_text": campaign.warning_text,
                 "cta_label": campaign.cta_label,
             }
@@ -355,7 +367,8 @@ async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
             message = (
                 f"{campaign_data['text'].strip()}\n\n"
                 f"{campaign_data['warning_text'].strip()}\n"
-                f"Рекламодатель: {campaign_data['advertiser_name'].strip()}"
+                f"Реклама. Рекламодатель: {campaign_data['advertiser_name'].strip()}, "
+                f"ИНН: {campaign_data['advertiser_inn']}. erid: {campaign_data['erid']}"
             )
             keyboard = {
                 "one_time": False,
@@ -402,3 +415,8 @@ async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
                 campaign.completed_at = datetime.utcnow()
         await session.commit()
     return {"processed": processed, "sent": sent, "skipped": skipped, "failed": failed}
+
+
+async def resume_campaign(campaign_id: int, admin_id: int) -> int:
+    """Resume a paused campaign through the same strict launch checks."""
+    return await start_campaign(campaign_id, admin_id)

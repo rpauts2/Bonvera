@@ -32,6 +32,7 @@ export default function AdminVk() {
   const [erid,setErid] = useState("");
   const [cta,setCta] = useState("Посмотреть предложения");
   const [draftId,setDraftId] = useState<number|null>(null);
+  const [entryLink,setEntryLink] = useState("");
   const [campaignPreview,setCampaignPreview] = useState<CampaignPreview|null>(null);
   const [csv,setCsv] = useState("");
   const [csvPreview,setCsvPreview] = useState<Preview|null>(null);
@@ -67,6 +68,18 @@ export default function AdminVk() {
     setBusy(true);setError("");setNotice("");setCampaignPreview(null);
     try {const result=await api.post<{id:number}>("/admin/vk/campaigns",{name,text:textValue,cta_label:cta,advertiser_name:advertiser,advertiser_inn:inn,erid,warning_text:"Оценивайте свои финансовые возможности и риски."});setDraftId(result.id);setNotice("Черновик кампании #"+result.id+" сохранён. Для отправки потребуются рекламодатель, ИНН, ERID и все пять ссылок.");await loadCampaigns();}
     catch(e){handleError(e);}finally{setBusy(false);}
+  };
+  const generateEntryLink = async(campaignId:number)=>{
+    setBusy(true);setError("");setNotice("");
+    try{
+      const result=await api.get<{entry_link:string}>("/admin/vk/campaigns/"+campaignId+"/entry-link");
+      setEntryLink(result.entry_link);
+      setNotice("Ссылка VK с меткой кампании готова. Используй её как адрес перехода в объявлении VK Ads.");
+    }catch(e){handleError(e);}finally{setBusy(false);}
+  };
+  const copyEntryLink = async()=>{
+    try{await navigator.clipboard.writeText(entryLink);setNotice("Ссылка кампании скопирована.");}
+    catch{setNotice("Скопируй ссылку из поля вручную.");}
   };
   const previewDraft = async()=>{
     if(!draftId)return;setBusy(true);setError("");
@@ -149,7 +162,8 @@ export default function AdminVk() {
         </div>
         <label className={label+" mt-3"}>Текст сообщения<textarea className={field+" min-h-[180px] resize-y"} maxLength={3500} value={textValue} onChange={e=>setTextValue(e.target.value)}/></label>
         <div className="mt-3 rounded-xl border border-amber-300/10 bg-amber-300/[.04] p-3 text-xs leading-5 text-amber-100/65">Предупреждение «Оценивайте свои финансовые возможности и риски» добавляется автоматически. Нельзя заявлять о персональном одобрении без подтверждения конкретной МФО.</div>
-        <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy} onClick={()=>void createDraft()} className="rounded-xl bg-cyan-300/15 px-4 py-3 text-xs font-extrabold text-cyan-100 disabled:opacity-40">{busy?"Сохраняю…":"Сохранить черновик"}</button>{draftId!==null&&<button disabled={busy} onClick={()=>void previewDraft()} className="rounded-xl border border-white/10 px-4 py-3 text-xs font-bold text-indigo-100">Проверить аудиторию</button>}{draftId!==null&&<button disabled={busy||!campaignPreview||campaignPreview.eligible_by_consent===0} onClick={()=>void sendDraft()} className="rounded-xl bg-emerald-400/15 px-4 py-3 text-xs font-extrabold text-emerald-100 disabled:opacity-40">Запустить рассылку</button>}</div>
+        <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy} onClick={()=>void createDraft()} className="rounded-xl bg-cyan-300/15 px-4 py-3 text-xs font-extrabold text-cyan-100 disabled:opacity-40">{busy?"Сохраняю…":"Сохранить черновик"}</button>{draftId!==null&&<button disabled={busy} onClick={()=>void previewDraft()} className="rounded-xl border border-white/10 px-4 py-3 text-xs font-bold text-indigo-100">Проверить аудиторию</button>}{draftId!==null&&<button disabled={busy} onClick={()=>void generateEntryLink(draftId)} className="rounded-xl border border-violet-300/20 bg-violet-300/10 px-4 py-3 text-xs font-bold text-violet-100">Ссылка для VK Ads</button>}{draftId!==null&&<button disabled={busy||!campaignPreview||campaignPreview.eligible_by_consent===0} onClick={()=>void sendDraft()} className="rounded-xl bg-emerald-400/15 px-4 py-3 text-xs font-extrabold text-emerald-100 disabled:opacity-40">Запустить рассылку</button>}</div>
+        {entryLink&&<div className="mt-4 rounded-xl border border-violet-300/15 bg-violet-300/[.05] p-3"><div className="text-xs font-bold text-violet-100">Персональная ссылка входа для этой кампании</div><input readOnly className={field+" mt-2"} value={entryLink}/><button onClick={()=>void copyEntryLink()} className="mt-2 rounded-lg bg-violet-300/15 px-3 py-2 text-xs font-bold text-violet-100">Копировать ссылку</button><p className="mt-2 text-[10px] text-indigo-200/40">Метка ref передаст источник в VK Callback, после чего клики по пяти предложениям будут связаны с кампанией.</p></div>}
         {campaignPreview&&<div className="mt-4 grid grid-cols-3 gap-2">{[["Всего",campaignPreview.total_contacts],["Согласие есть",campaignPreview.eligible_by_consent],["Исключено",campaignPreview.excluded_by_consent]].map(([title,value])=><div className="rounded-xl bg-white/[.04] p-3" key={String(title)}><div className="text-[10px] text-indigo-200/45">{title}</div><div className="mt-1 text-xl font-black tabular-nums">{Number(value)}</div></div>)}<p className="col-span-3 text-[10px] text-indigo-200/40">VK permission каждого человека будет проверено непосредственно перед отправкой.</p></div>}
       </article>
       <article className={panel+" p-5"}><h2 className="mb-4 text-lg font-extrabold">История кампаний</h2>{campaigns.length===0?<p className="text-sm text-indigo-200/45">Кампаний пока нет.</p>:<div className="space-y-3">{campaigns.map(c=><div className="rounded-xl border border-white/[.06] bg-white/[.025] p-3" key={c.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-bold">{c.name}</div><div className="mt-1 text-[10px] text-indigo-200/40">#{c.id} · {c.advertiser_name}</div></div><span className={"rounded-full px-2 py-1 text-[10px] font-bold "+(statusStyle[c.status]||"bg-white/5 text-slate-300")}>{statusLabel[c.status]||c.status}</span></div><div className="mt-3 grid grid-cols-3 gap-2 text-center">{[["Отправлено",c.sent_count],["Пропущено",c.skipped_count],["Ошибки",c.failed_count]].map(([title,value])=><div className="rounded-lg bg-black/20 p-2" key={String(title)}><div className="text-lg font-black">{Number(value)}</div><div className="text-[9px] text-indigo-200/40">{title}</div></div>)}</div>{(c.status==="running"||c.status==="paused")&&<button disabled={busy} onClick={()=>void campaignAction(c,c.status==="running"?"pause":"resume")} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-[10px] font-bold text-indigo-100 disabled:opacity-40">{c.status==="running"?"Приостановить":"Возобновить"}</button>}</div>)}</div>}</article>

@@ -95,7 +95,7 @@ class VKClient:
             raise VKAPIError(
                 code,
                 "VK API rejected the request",
-                retryable=code in self.RETRYABLE_CODES,
+                retryable=code in VKAPIError.RETRYABLE_CODES,
             )
         if "response" not in response:
             raise VKAPIError(None, "VK response did not contain a result")

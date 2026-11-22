@@ -342,7 +342,7 @@ class VkConsentEvent(Base):
 class VkOfferSlot(Base):
     __tablename__ = "vk_offer_slots"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    slot_number: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    slot_number: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
     advertiser_name: Mapped[str] = mapped_column(String(160), default="")
     title: Mapped[str] = mapped_column(String(160), default="")
@@ -354,6 +354,7 @@ class VkOfferSlot(Base):
     created: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     __table_args__ = (
+        UniqueConstraint("slot_number", name="uq_vk_offer_slots_slot_number"),
         CheckConstraint("slot_number BETWEEN 1 AND 5", name="ck_vk_offer_slots_number"),
         CheckConstraint(
             "(slot_number BETWEEN 1 AND 4 AND kind = 'mfo_offer') OR "

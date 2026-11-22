@@ -138,6 +138,14 @@ async def vk_admin_overview(request):
                 VkContact.marketing_suppressed == False,
             )
         )).scalar() or 0)
+        pending_manual_review = int((await session.execute(
+            select(func.count(VkContact.id)).where(
+                VkContact.personal_data_consent_at.is_not(None),
+                VkContact.marketing_consent_at.is_not(None),
+                VkContact.consent_review_status == "pending_review",
+                VkContact.marketing_suppressed == False,
+            )
+        )).scalar() or 0)
         suppressed = int((await session.execute(
             select(func.count(VkContact.id)).where(VkContact.marketing_suppressed == True)
         )).scalar() or 0)
@@ -149,6 +157,7 @@ async def vk_admin_overview(request):
         "vk_enabled": cfg.vk_enabled,
         "contacts_total": contacts,
         "marketing_opt_in": marketing_opt_in,
+        "pending_manual_review": pending_manual_review,
         "suppressed": suppressed,
         "campaigns_total": campaigns,
         "clicks_total": clicks,

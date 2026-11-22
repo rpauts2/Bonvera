@@ -7,6 +7,8 @@ import re
 import secrets
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from sqlalchemy import select
+
 from bot.config import cfg
 from bot.db import Session, VkClick, VkOfferSlot
 
@@ -76,7 +78,7 @@ async def resolve_click(token: str) -> str | None:
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     async with Session() as session:
         click = (await session.execute(
-            __import__("sqlalchemy").select(VkClick).where(VkClick.token_hash == token_hash)
+            select(VkClick).where(VkClick.token_hash == token_hash)
         )).scalar_one_or_none()
         if click is None:
             return None

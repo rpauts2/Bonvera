@@ -120,7 +120,9 @@ async def vk_admin_overview(request):
         contacts = int((await session.execute(select(func.count(VkContact.id)))).scalar() or 0)
         marketing_opt_in = int((await session.execute(
             select(func.count(VkContact.id)).where(
+                VkContact.personal_data_consent_at.is_not(None),
                 VkContact.marketing_consent_at.is_not(None),
+                VkContact.consent_review_status == "verified",
                 VkContact.marketing_suppressed == False,
             )
         )).scalar() or 0)
@@ -220,8 +222,26 @@ async def vk_admin_contacts(request):
             stmt = select(VkContact).where(VkContact.vk_user_id == int(q)).limit(limit)
         rows = (await session.execute(stmt)).scalars().all()
         total = int((await session.execute(select(func.count(VkContact.id)))).scalar() or 0)
+        row_ids = [row.id for row in rows]
+        events = []
+        if row_ids:
+            events = (await session.execute(
+                select(VkConsentEvent)
+                .where(VkConsentEvent.contact_id.in_(row_ids))
+                .order_by(VkConsentEvent.occurred_at.desc())
+            )).scalars().all()
+    evidence = {}
+    for event in events:
+        evidence.setdefault((event.contact_id, event.consent_type), {
+            "action": event.action,
+            "version": event.text_version,
+            "source": event.source,
+            "proof_reference": event.proof_reference,
+            "occurred_at": event.occurred_at.isoformat() if event.occurred_at else None,
+        })
     return _ok({
         "items": [{
+            "id": row.id,
             "vk_user_id": row.vk_user_id,
             "first_name": row.first_name or "",
             "last_name": row.last_name or "",
@@ -231,11 +251,72 @@ async def vk_admin_contacts(request):
             "marketing_consent_at": row.marketing_consent_at.isoformat() if row.marketing_consent_at else None,
             "marketing_consent_source": row.marketing_consent_source,
             "marketing_suppressed": row.marketing_suppressed,
+            "consent_review_status": row.consent_review_status,
+            "consent_reviewed_at": row.consent_reviewed_at.isoformat() if row.consent_reviewed_at else None,
+            "consent_reviewed_by": row.consent_reviewed_by,
+            "personal_data_evidence": evidence.get((row.id, "personal_data")),
+            "marketing_evidence": evidence.get((row.id, "marketing")),
             "source_campaign": row.source_campaign,
             "created": row.created.isoformat() if row.created else None,
         } for row in rows],
         "total": total,
     })
+
+
+async def vk_admin_contact_consent_review(request):
+    if not _admin(request):
+        return _err("forbidden", "Нет доступа.", 403)
+    try:
+        contact_id = int(request.match_info["id"])
+        body = await request.json()
+    except (TypeError, ValueError):
+        return _err("bad_request", "Некорректный запрос.")
+    if not isinstance(body, dict) or body.get("confirm") is not True:
+        return _err("confirmation_required", "Подтверди ручную проверку доказательств.", 409)
+    action = body.get("action")
+    if action not in {"approve", "reject"}:
+        return _err("invalid_action", "Допустимо только approve или reject.")
+    async with Session() as session:
+        contact = (await session.execute(
+            select(VkContact).where(VkContact.id == contact_id).with_for_update()
+        )).scalar_one_or_none()
+        if contact is None:
+            return _err("not_found", "Контакт не найден.", 404)
+        if contact.marketing_suppressed or contact.consent_review_status == "not_opted_in":
+            return _err("suppressed", "Пользователь отозвал рекламное согласие. Повторно допускать его нельзя без нового согласия.", 409)
+        consent_events = (await session.execute(
+            select(VkConsentEvent).where(
+                VkConsentEvent.contact_id == contact.id,
+                VkConsentEvent.action == "granted",
+                VkConsentEvent.consent_type.in_(["personal_data", "marketing"]),
+            )
+        )).scalars().all()
+        proof_by_type = {
+            event.consent_type: event
+            for event in consent_events
+            if event.proof_reference and event.text_version and event.source
+        }
+        if action == "approve":
+            if not contact.personal_data_consent_at or not contact.marketing_consent_at:
+                return _err("consent_missing", "Не зафиксированы оба согласия.", 409)
+            if set(proof_by_type) != {"personal_data", "marketing"}:
+                return _err("consent_evidence_missing", "Нет доказательств обоих согласий. Допуск запрещён.", 409)
+            contact.consent_review_status = "verified"
+            contact.marketing_suppressed = False
+            contact.consent_reviewed_at = datetime.utcnow()
+            contact.consent_reviewed_by = request["uid"]
+            audit_action = "vk_contact_consent_approved"
+            details = "Администратор проверил и подтвердил доказательства двух отдельных согласий."
+        else:
+            contact.consent_review_status = "rejected"
+            contact.marketing_suppressed = True
+            contact.consent_reviewed_at = datetime.utcnow()
+            contact.consent_reviewed_by = request["uid"]
+            audit_action = "vk_contact_consent_rejected"
+            details = "Доказательства согласий отклонены; рекламные сообщения заблокированы."
+        await _audit(session, request["uid"], audit_action, "vk_contact", contact.id, details)
+        await session.commit()
+    return _ok({"id": contact_id, "consent_review_status": "verified" if action == "approve" else "rejected"})
 
 
 async def vk_admin_import_preview(request):
@@ -406,6 +487,7 @@ def setup_vk_admin_api(app: web.Application) -> None:
     r.add_get("/api/v1/admin/vk/slots", vk_admin_slots_get)
     r.add_put("/api/v1/admin/vk/slots", vk_admin_slots_put)
     r.add_get("/api/v1/admin/vk/contacts", vk_admin_contacts)
+    r.add_post("/api/v1/admin/vk/contacts/{id}/consent-review", vk_admin_contact_consent_review)
     r.add_post("/api/v1/admin/vk/contacts/import/preview", vk_admin_import_preview)
     r.add_post("/api/v1/admin/vk/contacts/import/commit", vk_admin_import_commit)
     r.add_get("/api/v1/admin/vk/campaigns", vk_admin_campaigns_get)

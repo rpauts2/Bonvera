@@ -23,12 +23,15 @@ from bot.vk.copy_policy import validate_campaign_copy, validate_campaign_launch
 
 CONSENT_COLUMNS = {
     "vk_user_id",
-    "consent_at",
-    "consent_source",
-    "consent_version",
-    "consent_proof",
+    "personal_data_consent_at",
+    "personal_data_consent_source",
+    "personal_data_consent_version",
+    "personal_data_consent_proof",
+    "marketing_consent_at",
+    "marketing_consent_source",
+    "marketing_consent_version",
+    "marketing_consent_proof",
 }
-
 
 def _parse_datetime(value: str) -> datetime | None:
     try:
@@ -72,24 +75,34 @@ def preview_contact_import(csv_text: str) -> dict[str, Any]:
         except (TypeError, ValueError):
             errors.append({"line": line, "reason": "invalid_vk_user_id"})
             continue
-        consent_at = _parse_datetime(values.get("consent_at", ""))
-        source = values.get("consent_source", "")
-        version = values.get("consent_version", "")
-        proof = values.get("consent_proof", "")
+        personal_at = _parse_datetime(values.get("personal_data_consent_at", ""))
+        personal_source = values.get("personal_data_consent_source", "")
+        personal_version = values.get("personal_data_consent_version", "")
+        personal_proof = values.get("personal_data_consent_proof", "")
+        marketing_at = _parse_datetime(values.get("marketing_consent_at", ""))
+        marketing_source = values.get("marketing_consent_source", "")
+        marketing_version = values.get("marketing_consent_version", "")
+        marketing_proof = values.get("marketing_consent_proof", "")
         if vk_user_id <= 0:
             errors.append({"line": line, "reason": "invalid_vk_user_id"})
             continue
-        if consent_at is None or consent_at > datetime.utcnow() + timedelta(minutes=5):
-            errors.append({"line": line, "reason": "invalid_consent_at"})
+        if personal_at is None or personal_at > datetime.utcnow() + timedelta(minutes=5):
+            errors.append({"line": line, "reason": "invalid_personal_data_consent_at"})
             continue
-        if not source or len(source) > 120:
-            errors.append({"line": line, "reason": "missing_or_invalid_consent_source"})
+        if marketing_at is None or marketing_at > datetime.utcnow() + timedelta(minutes=5):
+            errors.append({"line": line, "reason": "invalid_marketing_consent_at"})
             continue
-        if not version or len(version) > 40:
-            errors.append({"line": line, "reason": "missing_or_invalid_consent_version"})
-            continue
-        if not proof or len(proof) > 255:
-            errors.append({"line": line, "reason": "missing_or_invalid_consent_proof"})
+        required = [
+            ("personal_data_consent_source", personal_source, 120),
+            ("personal_data_consent_version", personal_version, 40),
+            ("personal_data_consent_proof", personal_proof, 255),
+            ("marketing_consent_source", marketing_source, 120),
+            ("marketing_consent_version", marketing_version, 40),
+            ("marketing_consent_proof", marketing_proof, 255),
+        ]
+        invalid = next((name for name, value, max_len in required if not value or len(value) > max_len), None)
+        if invalid:
+            errors.append({"line": line, "reason": "missing_or_invalid_" + invalid})
             continue
         if vk_user_id in seen:
             duplicate_count += 1
@@ -97,10 +110,14 @@ def preview_contact_import(csv_text: str) -> dict[str, Any]:
         seen.add(vk_user_id)
         rows.append({
             "vk_user_id": vk_user_id,
-            "consent_at": consent_at,
-            "consent_source": source,
-            "consent_version": version,
-            "consent_proof": proof,
+            "personal_data_consent_at": personal_at,
+            "personal_data_consent_source": personal_source,
+            "personal_data_consent_version": personal_version,
+            "personal_data_consent_proof": personal_proof,
+            "marketing_consent_at": marketing_at,
+            "marketing_consent_source": marketing_source,
+            "marketing_consent_version": marketing_version,
+            "marketing_consent_proof": marketing_proof,
             "line": line,
         })
 
@@ -146,19 +163,31 @@ async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
                 created += 1
             else:
                 updated += 1
-            contact.marketing_consent_at = item["consent_at"]
-            contact.marketing_consent_version = item["consent_version"]
-            contact.marketing_consent_source = item["consent_source"]
+            contact.personal_data_consent_at = item["personal_data_consent_at"]
+            contact.personal_data_consent_version = item["personal_data_consent_version"]
+            contact.marketing_consent_at = item["marketing_consent_at"]
+            contact.marketing_consent_version = item["marketing_consent_version"]
+            contact.marketing_consent_source = item["marketing_consent_source"]
             contact.marketing_suppressed = False
+            session.add(VkConsentEvent(
+                contact_id=contact.id,
+                consent_type="personal_data",
+                action="granted",
+                text_version=item["personal_data_consent_version"],
+                source=item["personal_data_consent_source"],
+                proof_reference=item["personal_data_consent_proof"],
+                metadata_json={"imported_by_admin": int(admin_id), "csv_line": item["line"]},
+                occurred_at=item["personal_data_consent_at"],
+            ))
             session.add(VkConsentEvent(
                 contact_id=contact.id,
                 consent_type="marketing",
                 action="granted",
-                text_version=item["consent_version"],
-                source=item["consent_source"],
-                proof_reference=item["consent_proof"],
+                text_version=item["marketing_consent_version"],
+                source=item["marketing_consent_source"],
+                proof_reference=item["marketing_consent_proof"],
                 metadata_json={"imported_by_admin": int(admin_id), "csv_line": item["line"]},
-                occurred_at=item["consent_at"],
+                occurred_at=item["marketing_consent_at"],
             ))
         await session.commit()
     return {"created": created, "updated": updated, "suppressed": suppressed}

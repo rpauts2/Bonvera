@@ -30,3 +30,28 @@ def validate_campaign_copy(
     if APPROVAL_CLAIM.search(combined):
         errors.append("approval_claim")
     return {"ok": not errors, "errors": errors}
+
+
+
+def validate_campaign_launch(
+    text: str,
+    *,
+    advertiser_name: str,
+    advertiser_inn: str,
+    erid: str,
+    warning_text: str,
+    configured_slots: int,
+) -> dict:
+    errors = list(validate_campaign_copy(
+        text,
+        advertiser_name=advertiser_name,
+        warning_text=warning_text,
+    )["errors"])
+    digits = "".join(ch for ch in str(advertiser_inn or "") if ch.isdigit())
+    if len(digits) not in {10, 12}:
+        errors.append("advertiser_inn")
+    if not isinstance(erid, str) or not erid.strip():
+        errors.append("erid")
+    if configured_slots != 5:
+        errors.append("five_offer_slots_required")
+    return {"ok": not errors, "errors": errors}

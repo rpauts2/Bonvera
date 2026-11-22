@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 load_dotenv()
@@ -32,6 +33,17 @@ class Cfg:
     # Мониторинг: как часто проверять живость сервиса и когда слать алерт админам.
     health_interval_min: int = int(os.getenv("HEALTH_INTERVAL_MIN", "5"))
     health_alert_cooldown_min: int = int(os.getenv("HEALTH_ALERT_COOLDOWN_MIN", "30"))
+    # VK acquisition channel is completely optional until a community is configured.
+    vk_enabled: bool = _b("VK_ENABLED", "false")
+    vk_group_id: int = int(os.getenv("VK_GROUP_ID", "0") or 0)
+    vk_group_token: str = os.getenv("VK_GROUP_TOKEN", "")
+    vk_callback_secret: str = os.getenv("VK_CALLBACK_SECRET", "")
+    vk_confirmation: str = os.getenv("VK_CONFIRMATION", "")
+    vk_api_version: str = os.getenv("VK_API_VERSION", "5.199")
+    vk_api_timeout_s: int = int(os.getenv("VK_API_TIMEOUT_S", "10"))
+    vk_community_url: str = os.getenv("VK_COMMUNITY_URL", "")
+    vk_public_base_url: str = os.getenv("VK_PUBLIC_BASE_URL", "")
+    vk_privacy_url: str = os.getenv("VK_PRIVACY_URL", "")
 
 cfg = Cfg()
 

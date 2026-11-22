@@ -178,7 +178,7 @@ async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
             if contact is None:
                 contact = VkContact(
                     vk_user_id=item["vk_user_id"],
-                    flow_state="awaiting_personal_data_consent",
+                    flow_state="awaiting_phone",
                     source_campaign="admin_contact_import",
                     marketing_suppressed=False,
                 )

@@ -139,6 +139,24 @@ def is_marketing_eligible(contact: VkContact) -> bool:
     )
 
 
+def within_campaign_frequency_cap(
+    *,
+    last_sent_at: datetime | None,
+    sent_count_30d: int,
+    now: datetime | None = None,
+    minimum_interval_hours: int | None = None,
+    maximum_messages_30d: int | None = None,
+) -> bool:
+    current = now or datetime.utcnow()
+    min_hours = cfg.vk_min_campaign_interval_hours if minimum_interval_hours is None else minimum_interval_hours
+    max_count = cfg.vk_max_campaign_messages_30d if maximum_messages_30d is None else maximum_messages_30d
+    if sent_count_30d >= max_count:
+        return False
+    if last_sent_at is not None and current - last_sent_at < timedelta(hours=min_hours):
+        return False
+    return True
+
+
 async def commit_contact_import(csv_text: str, admin_id: int) -> dict[str, int]:
     preview = preview_contact_import(csv_text)
     if preview["errors"]:
@@ -409,6 +427,30 @@ async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
             allowed = await client.is_messages_allowed(user_id)
             if not allowed:
                 await _update_recipient(recipient_id, "skipped_no_vk_permission", error_code="vk_permission_denied")
+                skipped += 1
+                continue
+            current = datetime.utcnow()
+            cutoff = current - timedelta(days=30)
+            async with Session() as session:
+                sent_30d = int((await session.execute(
+                    select(func.count(VkCampaignRecipient.id)).where(
+                        VkCampaignRecipient.contact_id == recipient_id,
+                        VkCampaignRecipient.status == "sent",
+                        VkCampaignRecipient.sent_at >= cutoff,
+                    )
+                )).scalar() or 0)
+                last_sent = (await session.execute(
+                    select(func.max(VkCampaignRecipient.sent_at)).where(
+                        VkCampaignRecipient.contact_id == recipient_id,
+                        VkCampaignRecipient.status == "sent",
+                    )
+                )).scalar_one_or_none()
+            if not within_campaign_frequency_cap(
+                last_sent_at=last_sent,
+                sent_count_30d=sent_30d,
+                now=current,
+            ):
+                await _update_recipient(recipient_id, "skipped_frequency_cap", error_code="marketing_frequency_cap")
                 skipped += 1
                 continue
             message = (

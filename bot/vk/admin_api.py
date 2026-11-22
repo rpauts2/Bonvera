@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from urllib.parse import urlsplit
+import re
 
 from aiohttp import web
 from sqlalchemy import func, select
@@ -81,7 +82,7 @@ def validate_slots_payload(slots) -> tuple[list[dict], list[str]]:
         if enabled and not advertiser:
             errors.append(f"slot_{number}_advertiser_required")
             continue
-        if tracking_param and (len(tracking_param) > 40 or not tracking_param.replace("_", "a").isalnum()):
+        if tracking_param and not re.fullmatch(r"[A-Za-z0-9_]{1,40}", tracking_param):
             errors.append(f"slot_{number}_invalid_tracking_param")
             continue
         normalized.append({
@@ -208,7 +209,10 @@ async def vk_admin_contacts(request):
     if not _admin(request):
         return _err("forbidden", "Нет доступа.", 403)
     q = (request.query.get("q") or "").strip()[:40]
-    limit = min(100, max(1, int(request.query.get("limit", "50") or 50)))
+    try:
+        limit = min(100, max(1, int(request.query.get("limit", "50") or 50)))
+    except (TypeError, ValueError):
+        limit = 50
     async with Session() as session:
         stmt = select(VkContact).order_by(VkContact.created.desc()).limit(limit)
         if q.isdigit():
@@ -312,6 +316,28 @@ async def vk_admin_campaign_preview(request):
     return _ok(data)
 
 
+async def vk_admin_campaign_resume(request):
+    if not _admin(request):
+        return _err("forbidden", "Нет доступа.", 403)
+    try:
+        campaign_id = int(request.match_info["id"])
+        body = await request.json()
+        if not isinstance(body, dict) or body.get("confirm") is not True:
+            return _err("confirmation_required", "Для возобновления нужно явное подтверждение.", 409)
+        from bot.vk.outreach import resume_campaign
+        queued = await resume_campaign(campaign_id, request["uid"])
+    except (TypeError, ValueError) as exc:
+        return _err("invalid_campaign", str(exc), 422)
+    except LookupError:
+        return _err("not_found", "Кампания не найдена.", 404)
+    except PermissionError:
+        return _err("forbidden", "Нет доступа к этой кампании.", 403)
+    async with Session() as session:
+        await _audit(session, request["uid"], "vk_campaign_resumed", "vk_campaign", campaign_id, f"Повторно поставлено в очередь: {queued}")
+        await session.commit()
+    return _ok({"id": campaign_id, "queued": queued, "status": "running"})
+
+
 async def vk_admin_campaign_send(request):
     if not _admin(request):
         return _err("forbidden", "Нет доступа.", 403)
@@ -365,3 +391,4 @@ def setup_vk_admin_api(app: web.Application) -> None:
     r.add_post("/api/v1/admin/vk/campaigns/{id}/preview", vk_admin_campaign_preview)
     r.add_post("/api/v1/admin/vk/campaigns/{id}/send", vk_admin_campaign_send)
     r.add_post("/api/v1/admin/vk/campaigns/{id}/pause", vk_admin_campaign_pause)
+    r.add_post("/api/v1/admin/vk/campaigns/{id}/resume", vk_admin_campaign_resume)

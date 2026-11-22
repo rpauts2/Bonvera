@@ -5,7 +5,7 @@ from bot.vk.outreach import is_marketing_eligible, preview_contact_import
 
 
 def test_contact_import_requires_row_level_consent_evidence():
-    csv_text = "vk_user_id,consent_at,consent_source,consent_version,consent_proof\n123456,2026-11-20T10:00:00Z,,,\n"
+    csv_text = "vk_user_id,personal_data_consent_at,personal_data_consent_source,personal_data_consent_version,personal_data_consent_proof,marketing_consent_at,marketing_consent_source,marketing_consent_version,marketing_consent_proof\n123456,2026-11-20T10:00:00Z,privacy-form,privacy-v1,privacy-proof,2026-11-20T10:00:00Z,marketing-form,marketing-v1,marketing-proof\n"
     preview = preview_contact_import(csv_text)
     assert preview["valid_count"] == 0
     assert preview["errors"][0]["line"] == 2
@@ -13,7 +13,7 @@ def test_contact_import_requires_row_level_consent_evidence():
 
 def test_contact_import_accepts_and_deduplicates_proven_opt_in_vk_ids():
     csv_text = (
-        "vk_user_id,consent_at,consent_source,consent_version,consent_proof\n"
+        "vk_user_id,personal_data_consent_at,personal_data_consent_source,personal_data_consent_version,personal_data_consent_proof,marketing_consent_at,marketing_consent_source,marketing_consent_version,marketing_consent_proof\n"
         "123456,2026-11-20T10:00:00Z,web-form,2026-11-v1,consent-proof-001\n"
         "123456,2026-11-20T10:00:00Z,web-form,2026-11-v1,consent-proof-001\n"
     )

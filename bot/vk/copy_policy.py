@@ -26,6 +26,10 @@ def validate_campaign_copy(
         errors.append("advertiser")
     if not isinstance(warning_text, str) or REQUIRED_WARNING.casefold() not in warning_text.casefold():
         errors.append("warning")
+    elif isinstance(text, str) and text.strip():
+        warning_share = len(warning_text.strip()) / max(1, len(text.strip()) + len(warning_text.strip()))
+        if warning_share < 0.05:
+            errors.append("warning_area_below_five_percent")
     combined = f"{text or ''}\n{warning_text or ''}"
     if APPROVAL_CLAIM.search(combined):
         errors.append("approval_claim")

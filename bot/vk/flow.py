@@ -271,6 +271,9 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
             contact.marketing_consent_at = None
             contact.marketing_suppressed = True
             contact.marketing_consent_source = "user_withdrawal"
+            contact.consent_review_status = "not_opted_in"
+            contact.consent_reviewed_at = None
+            contact.consent_reviewed_by = None
             await session.commit()
             await _send(
                 client,
@@ -318,6 +321,9 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
                 contact.marketing_consent_version = MARKETING_CONSENT_VERSION
                 contact.marketing_consent_source = "vk_community_bot"
                 contact.marketing_suppressed = False
+                contact.consent_review_status = "verified"
+                contact.consent_reviewed_at = datetime.utcnow()
+                contact.consent_reviewed_by = None
                 await _record_consent(
                     session,
                     contact,
@@ -331,6 +337,9 @@ async def handle_vk_message(message: dict, event_id: str) -> None:
                 contact.marketing_consent_version = MARKETING_CONSENT_VERSION
                 contact.marketing_consent_source = "user_declined"
                 contact.marketing_suppressed = True
+                contact.consent_review_status = "not_opted_in"
+                contact.consent_reviewed_at = None
+                contact.consent_reviewed_by = None
                 await _record_consent(
                     session,
                     contact,

@@ -51,7 +51,9 @@ async def create_click(
     if not cfg.vk_public_base_url.startswith("https://"):
         raise RuntimeError("VK_PUBLIC_BASE_URL must be configured before exposing tracked links")
     async with Session() as session:
-        slot = await session.get(VkOfferSlot, slot_number, populate_existing=True)
+        slot = (await session.execute(
+            select(VkOfferSlot).where(VkOfferSlot.slot_number == slot_number)
+        )).scalar_one_or_none()
         if slot is None or not slot.enabled or not slot.target_url:
             raise ValueError("VK offer slot is not configured or active")
         target = validate_external_target(slot.target_url)
@@ -82,7 +84,9 @@ async def resolve_click(token: str) -> str | None:
         )).scalar_one_or_none()
         if click is None:
             return None
-        slot = await session.get(VkOfferSlot, click.slot_number)
+        slot = (await session.execute(
+            select(VkOfferSlot).where(VkOfferSlot.slot_number == click.slot_number)
+        )).scalar_one_or_none()
         if slot is None or not slot.enabled or not slot.target_url:
             click.outcome = "blocked"
             await session.commit()

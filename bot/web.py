@@ -151,6 +151,8 @@ def make_web(bot):
         payload["ok"] = bool(payload["db_live"] and payload.get("ok", True))
         return web.json_response(payload, status=200 if payload["ok"] else 503)
     app.router.add_get("/health", health)
+    from bot.vk.callback import handle_vk_callback
+    app.router.add_post("/vk/callback", handle_vk_callback)
     from bot.tma_api import setup_tma
     setup_tma(app, bot)
     return app

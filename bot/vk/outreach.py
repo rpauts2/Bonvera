@@ -417,6 +417,7 @@ async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
                 "cta_label": campaign.cta_label,
             }
             user_id = contact.vk_user_id
+            contact_id = contact.id
             eligible = is_marketing_eligible(contact)
             attempts = recipient.attempt_count
         if not eligible:
@@ -434,14 +435,14 @@ async def dispatch_campaign_batch(batch_size: int = 10) -> dict[str, int]:
             async with Session() as session:
                 sent_30d = int((await session.execute(
                     select(func.count(VkCampaignRecipient.id)).where(
-                        VkCampaignRecipient.contact_id == recipient_id,
+                        VkCampaignRecipient.contact_id == contact_id,
                         VkCampaignRecipient.status == "sent",
                         VkCampaignRecipient.sent_at >= cutoff,
                     )
                 )).scalar() or 0)
                 last_sent = (await session.execute(
                     select(func.max(VkCampaignRecipient.sent_at)).where(
-                        VkCampaignRecipient.contact_id == recipient_id,
+                        VkCampaignRecipient.contact_id == contact_id,
                         VkCampaignRecipient.status == "sent",
                     )
                 )).scalar_one_or_none()

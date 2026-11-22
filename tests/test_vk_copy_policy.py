@@ -17,6 +17,7 @@ def test_campaign_copy_blocks_unverified_preapproval_claims():
         "Вам одобрен займ до 30000 рублей!",
         "Одобряем всем без исключения.",
         "100% одобрение даже с плохой кредитной историей.",
+        "Вам предодобрен займ.",
     ]:
         result = validate_campaign_copy(
             text,
@@ -35,3 +36,13 @@ def test_campaign_copy_accepts_non_deceptive_offer_with_advertiser_and_warning()
     )
     assert result["ok"] is True
     assert result["errors"] == []
+
+
+def test_campaign_copy_requires_warning_to_occupy_at_least_five_percent():
+    result = validate_campaign_copy(
+        "Предложение МФО. " * 100,
+        advertiser_name="ООО Рекламодатель",
+        warning_text="Оценивайте свои финансовые возможности и риски.",
+    )
+    assert result["ok"] is False
+    assert "warning_area_below_five_percent" in result["errors"]

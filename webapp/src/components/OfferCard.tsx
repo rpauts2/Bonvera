@@ -10,6 +10,13 @@ const CAT_LABEL: Record<string, string> = {
   cpl: "CPL-заявки",
 };
 
+const CAT_SHORT: Record<string, string> = {
+  cards: "Карты",
+  bk: "БК",
+  mfo: "МФО",
+  cpl: "CPL",
+};
+
 const KIND_LABEL: Record<string, string> = {
   debit: "Дебетовая",
   credit: "Кредитная",
@@ -59,35 +66,32 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
         )}
         <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-navy-950/90 via-transparent to-navy-950/10" />
 
-        <div className="absolute left-3 top-3 z-[3] flex flex-wrap gap-1.5">
-          <span className="rounded-full border border-white/10 bg-navy-950/80 px-2.5 py-1 text-[11px] font-bold text-indigo-100 backdrop-blur">
-            {CAT_LABEL[offer.category] ?? offer.category}
-          </span>
-          {kindLabel && (
-            <span className="rounded-full border border-violet-300/20 bg-navy-950/80 px-2.5 py-1 text-[10px] font-bold text-violet-200 backdrop-blur">
-              {kindLabel}
+        <div className="absolute inset-x-2.5 top-2.5 z-[3] flex items-start justify-between gap-1.5 sm:inset-x-3 sm:top-3">
+          <div className="flex min-w-0 flex-wrap gap-1.5">
+            <span className="rounded-full border border-white/10 bg-navy-950/80 px-2 py-0.5 text-[10px] font-bold text-indigo-100 backdrop-blur sm:px-2.5 sm:py-1 sm:text-[11px]">
+              <span className="hidden sm:inline">{CAT_LABEL[offer.category] ?? offer.category}</span>
+              <span className="sm:hidden">{CAT_SHORT[offer.category] ?? offer.category}</span>
             </span>
-          )}
-          {ageBadge && (
-            <span className="rounded-full border border-gold/25 bg-navy-950/80 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur">
-              {ageBadge}
-            </span>
-          )}
-        </div>
+            {kindLabel && (
+              <span className="rounded-full border border-violet-300/20 bg-navy-950/80 px-2 py-0.5 text-[9px] font-bold text-violet-200 backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px]">
+                {kindLabel}
+              </span>
+            )}
+            {ageBadge && (
+              <span className="rounded-full border border-gold/25 bg-navy-950/80 px-2 py-0.5 text-[9px] font-bold text-gold backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px]">
+                {ageBadge}
+              </span>
+            )}
+          </div>
 
-        {offer.available ? (
-          <span className="absolute bottom-2 right-2 z-[3] inline-flex items-center gap-1 rounded-full border border-emerald-glow/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-emerald-glow backdrop-blur sm:bottom-auto sm:top-3">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-glow" />
-            Доступно
-          </span>
-        ) : (
           <span
-            className="absolute bottom-2 right-2 z-[3] max-w-[60%] truncate rounded-full border border-gold/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur sm:bottom-auto sm:top-3"
-            title={offer.unavailable_reason ?? undefined}
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border bg-navy-950/85 px-2 py-0.5 text-[9px] font-bold backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px] ${offer.available ? "border-emerald-glow/30 text-emerald-glow" : "border-gold/30 text-gold"}`}
+            title={offer.available ? undefined : offer.unavailable_reason ?? undefined}
           >
-            {offer.has_partner_link ? "Скоро" : "Нет ссылки"}
+            {offer.available && <span className="h-1.5 w-1.5 rounded-full bg-emerald-glow" />}
+            {offer.available ? "Доступно" : offer.has_partner_link ? "Скоро" : "Нет ссылки"}
           </span>
-        )}
+        </div>
       </div>
 
       <div className="space-y-3 p-3.5 sm:p-4">

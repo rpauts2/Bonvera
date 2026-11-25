@@ -119,11 +119,8 @@ export default function MyApps() {
                   <Icon name="chevron-right" className="ml-auto mt-1 h-4 w-4 text-indigo-300/40" />
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between">
+              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <StatusBadge status={a.status} />
-                {a.status === "new" && !a.submitted && (
-                  <span className="text-[12px] font-bold text-electric">нужны подтверждения</span>
-                )}
                 {a.status === "hold" && a.hold_until && (
                   <span className="text-[12px] text-indigo-300/70">холд до {fmtDate(a.hold_until)}</span>
                 )}

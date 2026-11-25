@@ -189,8 +189,8 @@ export default function OfferPage() {
                   </div>
                   <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
                     <Icon name="check" className="h-4 w-4 text-electric" />
-                    <div className="mt-2 text-sm font-extrabold text-white">{offer.purchase_min > 0 ? offer.purchase_min + " ₽" : "Не указан"}</div>
-                    <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">условие</div>
+                    <div className="mt-2 text-sm font-extrabold text-white">{offer.purchase_min > 0 ? "от " + offer.purchase_min + " ₽" : "Не требуется"}</div>
+                    <div className="mt-0.5 text-[10px] leading-tight text-indigo-300/65">мин. покупка</div>
                   </div>
                 </div>
               </div>

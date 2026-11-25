@@ -16,6 +16,7 @@ from sqlalchemy import text
 
 from bot.config import cfg
 from bot.db import Session
+from bot.version import build_info
 
 HEALTH: dict = {
     "started_at": None,
@@ -105,6 +106,7 @@ def health_payload() -> dict:
         "web": "ok",
         "last_check": HEALTH.get("last_check"),
         "started_at": HEALTH.get("started_at"),
+        "build": build_info(),
     }
     if HEALTH.get("bot_username"):
         payload["bot"] = HEALTH["bot_username"]

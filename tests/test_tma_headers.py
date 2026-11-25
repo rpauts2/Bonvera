@@ -30,7 +30,8 @@ def test_spa_index_no_cache_and_security_headers(loop, client):
     resp = _get(loop, client, "/app")
     # dist может быть не собран в тестовой среде → 503, но заголовки обязаны быть
     assert resp.status in (200, 503)
-    assert resp.headers["Cache-Control"] == "no-cache"
+    # no-store, а не no-cache: Telegram WebView иначе годами держит старый бандл
+    assert resp.headers["Cache-Control"] == "no-store, must-revalidate"
     assert resp.headers["X-Content-Type-Options"] == "nosniff"
     assert resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
 

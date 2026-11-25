@@ -24,6 +24,7 @@ from bot.db import AdminAuditEvent, App, Bank, BroadcastCampaign, DealEvent, Dea
 from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data, verify_telegram_login
+from bot.version import build_info
 from bot.tma_files import (
     ALLOWED_EXT, IMAGE_EXT, MAX_FILES_PER_UPLOAD, FileError, resolve_proof, safe_ext, store_proof,
 )
@@ -813,12 +814,16 @@ async def leaderboard(request):
 async def spa_index(request):
     dist = ROOT / "webapp" / "dist"
     index = dist / "index.html"
+    # Telegram WebView happily caches index.html, which pins users to an old bundle.
+    # Hashed assets keep their long cache; the HTML shell must always be revalidated.
+    shell_headers = {"Cache-Control": "no-store, must-revalidate"}
     if not index.exists():
         return web.json_response(
             {"ok": False, "err": {"code": "no_frontend", "message": "Frontend не собран. Выполни npm run build в webapp/."}},
             status=503,
+            headers=shell_headers,
         )
-    return web.FileResponse(index)
+    return web.FileResponse(index, headers=shell_headers)
 
 
 
@@ -839,7 +844,7 @@ async def admin_overview(request):
         recent_payouts = (await s.execute(select(PayoutReq).order_by(PayoutReq.created.desc()).limit(6))).scalars().all()
         app_rows = [{"id": a.id, "user_id": a.user_id, "offer": (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}"), "status": a.status, "reward": a.cashback, "created": a.created.isoformat() if a.created else None} for a in recent_apps]
         payout_rows = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "status": p.status, "created": p.created.isoformat() if p.created else None} for p in recent_payouts]
-    return ok({"users_total": users_total, "users_active": users_active, "offers_total": offers_total, "offers_enabled": offers_enabled, "apps_by_status": apps_by_status, "pending_payouts": pending_payouts, "pending_payouts_sum": pending_sum, "recent_apps": app_rows, "recent_payouts": payout_rows})
+    return ok({"users_total": users_total, "users_active": users_active, "offers_total": offers_total, "offers_enabled": offers_enabled, "apps_by_status": apps_by_status, "pending_payouts": pending_payouts, "pending_payouts_sum": pending_sum, "recent_apps": app_rows, "recent_payouts": payout_rows, "build": build_info()})
 
 
 async def admin_section(request):

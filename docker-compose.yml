@@ -34,7 +34,10 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
   bot:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     env_file: .env
     environment:
       DB_URL: postgresql+asyncpg://cashback:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/cashback

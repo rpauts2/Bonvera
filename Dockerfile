@@ -12,5 +12,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+# Build stamp so /health and the admin panel can name the running commit.
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=$GIT_COMMIT
 COPY --from=webapp /webapp/dist ./webapp/dist
 CMD ["python", "-m", "bot"]

@@ -76,13 +76,13 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
         </div>
 
         {offer.available ? (
-          <span className="absolute right-3 top-3 z-[3] inline-flex items-center gap-1 rounded-full border border-emerald-glow/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-emerald-glow backdrop-blur">
+          <span className="absolute bottom-2 right-2 z-[3] inline-flex items-center gap-1 rounded-full border border-emerald-glow/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-emerald-glow backdrop-blur sm:bottom-auto sm:top-3">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-glow" />
             Доступно
           </span>
         ) : (
           <span
-            className="absolute right-3 top-3 z-[3] max-w-[60%] truncate rounded-full border border-gold/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur"
+            className="absolute bottom-2 right-2 z-[3] max-w-[60%] truncate rounded-full border border-gold/30 bg-navy-950/85 px-2.5 py-1 text-[10px] font-bold text-gold backdrop-blur sm:bottom-auto sm:top-3"
             title={offer.unavailable_reason ?? undefined}
           >
             {offer.has_partner_link ? "Скоро" : "Нет ссылки"}
@@ -100,22 +100,22 @@ export function OfferCard({ offer, compact }: { offer: OfferCardType; compact?: 
           </div>
         </div>
 
-        <div className="flex items-end justify-between gap-2 border-t border-white/[0.07] pt-3">
+        <div className="flex flex-col gap-1 border-t border-white/[0.07] pt-3 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300/65">
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-indigo-300/65 sm:text-[10px]">
               Вознаграждение
             </div>
             <div
-              className={`mt-0.5 whitespace-nowrap text-xl font-black tracking-tight ${
+              className={`mt-0.5 whitespace-nowrap text-[17px] font-black leading-tight tracking-tight tabular-nums sm:text-xl ${
                 offer.reward > 0 ? "text-gold-gradient" : "text-indigo-200/40"
               }`}
             >
               {offer.reward > 0 ? `${offer.reward.toLocaleString("ru-RU")} ₽` : "Скоро"}
             </div>
           </div>
-          <div className="shrink-0 text-right">
-            <div className={`inline-flex items-center gap-1 text-[11px] font-semibold ${holdTone(offer.hold_days)}`}>
-              <Icon name="clock" className="h-3.5 w-3.5" />
+          <div className="shrink-0 sm:text-right">
+            <div className={`inline-flex items-center gap-1 text-[10px] font-semibold sm:text-[11px] ${holdTone(offer.hold_days)}`}>
+              <Icon name="clock" className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               холд {offer.hold_days} дн.
             </div>
           </div>

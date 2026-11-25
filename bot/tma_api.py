@@ -848,7 +848,7 @@ async def admin_overview(request):
         # would otherwise sit unnoticed in the postback log.
         app_ids = {row[0] for row in (await s.execute(select(App.id))).all()}
         approved_pb = (await s.execute(select(PbLog).where(PbLog.status.in_(["approved", "confirmed", "paid", "1", "accepted"])).order_by(PbLog.id.desc()).limit(200))).scalars().all()
-        loose = [p for p in approved_pb if parse_subid(p.subid or "") not in app_ids]
+        loose = [p for p in approved_pb if parse_subid(p.subid or "") not in app_ids and "lead_id" in (p.raw or "")]
         loose_stats = {"count": len(loose), "payout": sum(int(p.payout or 0) for p in loose)}
     return ok({"users_total": users_total, "users_active": users_active, "offers_total": offers_total, "offers_enabled": offers_enabled, "apps_by_status": apps_by_status, "pending_payouts": pending_payouts, "pending_payouts_sum": pending_sum, "recent_apps": app_rows, "recent_payouts": payout_rows, "unattributed_postbacks": loose_stats, "build": build_info()})
 

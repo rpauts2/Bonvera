@@ -21,7 +21,7 @@ from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
 from bot.db import AdminAuditEvent, App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, Tier, User, WalletEntry
-from bot.logic import notify, parse_subid, phone_decrypt, phone_encrypt, phone_norm, phash
+from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
 from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data, verify_telegram_login
 from bot.version import build_info
@@ -844,11 +844,11 @@ async def admin_overview(request):
         recent_payouts = (await s.execute(select(PayoutReq).order_by(PayoutReq.created.desc()).limit(6))).scalars().all()
         app_rows = [{"id": a.id, "user_id": a.user_id, "offer": (a.offer_snapshot or {}).get("name", f"Оффер #{a.offer_id}"), "status": a.status, "reward": a.cashback, "created": a.created.isoformat() if a.created else None} for a in recent_apps]
         payout_rows = [{"id": p.id, "user_id": p.user_id, "amount": p.amount, "status": p.status, "created": p.created.isoformat() if p.created else None} for p in recent_payouts]
-        # Approved conversions the network reported but no deal owns: money that
-        # would otherwise sit unnoticed in the postback log.
-        app_ids = {row[0] for row in (await s.execute(select(App.id))).all()}
+        # Approved conversions the network reported but no deal can own: a real
+        # ProCPA lead arrives with an empty subid and a lead_id. Rows with a subid
+        # are test callbacks or deleted deals and stay out of the warning.
         approved_pb = (await s.execute(select(PbLog).where(PbLog.status.in_(["approved", "confirmed", "paid", "1", "accepted"])).order_by(PbLog.id.desc()).limit(200))).scalars().all()
-        loose = [p for p in approved_pb if parse_subid(p.subid or "") not in app_ids and "lead_id" in (p.raw or "")]
+        loose = [p for p in approved_pb if not (p.subid or "").strip() and "lead_id" in (p.raw or "")]
         loose_stats = {"count": len(loose), "payout": sum(int(p.payout or 0) for p in loose)}
     return ok({"users_total": users_total, "users_active": users_active, "offers_total": offers_total, "offers_enabled": offers_enabled, "apps_by_status": apps_by_status, "pending_payouts": pending_payouts, "pending_payouts_sum": pending_sum, "recent_apps": app_rows, "recent_payouts": payout_rows, "unattributed_postbacks": loose_stats, "build": build_info()})
 

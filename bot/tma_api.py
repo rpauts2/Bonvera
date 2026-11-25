@@ -21,7 +21,7 @@ from bot import services
 from bot.bonuses import CHANNEL_BONUS, grant_bonus
 from bot.config import cfg
 from bot.db import AdminAuditEvent, App, Bank, BroadcastCampaign, DealEvent, DealMessage, Offer, OfferEvent, PayoutEvent, PayoutReq, PbLog, Session, TmaSession, Tier, User, WalletEntry
-from bot.logic import notify, phone_decrypt, phone_encrypt, phone_norm, phash
+from bot.logic import notify, parse_subid, phone_decrypt, phone_encrypt, phone_norm, phash, subid
 from bot.proofs import proof_progress, proofs_complete
 from bot.tma_auth import InitDataError, create_session, session_user_id, token_hash, verify_init_data, verify_telegram_login
 from bot.version import build_info
@@ -30,6 +30,8 @@ from bot.tma_files import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+# Statuses a network reports for a conversion it has accepted.
+PB_OK = {"approved", "confirmed", "paid", "1", "accepted"}
 
 
 def _apply_response_headers(request, response):
@@ -907,7 +909,10 @@ async def admin_section(request):
                 pb_filters.append(or_(PbLog.subid.ilike(pattern), PbLog.raw.ilike(pattern)))
             total_rows = int((await s.execute(select(func.count()).select_from(PbLog).where(*pb_filters))).scalar() or 0)
             rows = (await s.execute(select(PbLog).where(*pb_filters).order_by(PbLog.id.desc()).limit(limit))).scalars().all()
-            data = [{"id": p.id, "subid": p.subid, "status": p.status, "payout": p.payout, "raw": p.raw} for p in rows]
+            # subid is the only link to a deal, so rows without one need a human decision.
+            parsed = {p.id: parse_subid(p.subid or "") for p in rows}
+            live = {row[0] for row in (await s.execute(select(App.id).where(App.id.in_([aid for aid in parsed.values() if aid] or [0])))).all()}
+            data = [{"id": p.id, "subid": p.subid, "status": p.status, "payout": p.payout, "raw": p.raw, "can_bind": not (p.subid or "").strip() and (p.status or "").strip().lower() in PB_OK, "bound_app_id": parsed[p.id] if parsed[p.id] in live else None} for p in rows]
         elif section == "finance":
             credits = int((await s.execute(select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(WalletEntry.amount > 0))).scalar() or 0)
             debits = int((await s.execute(select(func.coalesce(func.sum(-WalletEntry.amount), 0)).where(WalletEntry.amount < 0))).scalar() or 0)
@@ -1093,6 +1098,74 @@ async def admin_app_action(request):
         await s.commit()
     await notify(bot, user_id, f"❌ Заявка #{app_id} отклонена.\nПричина: {reason}\nЕсть вопросы? Открой сделку и напиши в поддержку.")
     return ok({"id": app_id, "status": "rejected"})
+
+
+def _pb_lead_id(raw: str | None) -> str:
+    """Network lead number from the whitelisted postback payload."""
+    match = re.search(r"'lead_id':\s*'([^']*)'", raw or "")
+    return match.group(1) if match else ""
+
+
+async def admin_postback_bind(request):
+    """Attach a network conversion that arrived without subid to an existing deal.
+
+    ProCPA sends real leads as an empty sub1 plus a lead_id, so nothing links the
+    money to a deal. The admin names the deal here; from that point the conversion
+    follows the regular confirmed-callback path (hold, payout, user notice).
+    """
+    if request["uid"] not in cfg.admins:
+        return err("forbidden", "Нет доступа к панели администратора.", 403)
+    try:
+        pb_id = int(request.match_info["id"])
+        body = await request.json()
+    except Exception:
+        return err("bad_request", "Некорректный запрос.")
+    try:
+        app_id = int(body.get("app_id")) if isinstance(body, dict) else 0
+    except (TypeError, ValueError):
+        return err("bad_app_id", "Укажи номер заявки целым числом.")
+    if app_id <= 0:
+        return err("bad_app_id", "Укажи номер заявки целым числом.")
+    bot = request.app[BOT_KEY]
+    notice = None
+    async with Session() as s:
+        postback = (await s.execute(select(PbLog).where(PbLog.id == pb_id).with_for_update())).scalar_one_or_none()
+        if postback is None:
+            return err("postback_not_found", "Postback не найден.", 404)
+        bound_aid = parse_subid(postback.subid or "")
+        if bound_aid and await s.get(App, bound_aid) is not None:
+            return err("already_bound", f"Postback уже привязан к заявке #{bound_aid}; повторная привязка запрещена.", 409)
+        deal = (await s.execute(select(App).where(App.id == app_id).with_for_update())).scalar_one_or_none()
+        if deal is None:
+            return err("app_not_found", "Заявка не найдена.", 404)
+        if (postback.status or "").strip().lower() not in PB_OK:
+            return err("status_not_bindable", "Привязывать можно только подтверждённые конверсии: статус постбэка должен быть approved, confirmed, paid, accepted или 1.", 409)
+        if deal.status in ("rejected", "expired"):
+            return err("app_final_status", "Заявка уже отклонена или истекла — подтверждённую конверсию к ней привязать нельзя.", 409)
+        payout = max(0, int(postback.payout or 0))
+        postback.subid = subid(deal.id)
+        if deal.status in ("confirmed", "paid"):
+            # Same as the postback handler: settled deals only learn the network sum.
+            if payout > 0 and deal.payout <= 0:
+                deal.payout = payout
+                s.add(DealEvent(app_id=deal.id, actor_id=request["uid"], event="network_payout_received", from_status=deal.status, to_status=deal.status,
+                                comment=f"Сеть прислала сумму выплаты {payout} ₽ (ручная привязка постбэка #{postback.id}); начисление пользователю не изменялось"))
+        else:
+            old = deal.status
+            days = int((deal.offer_snapshot or {}).get("hold_days", 30))
+            deal.status, deal.payout = "hold", payout
+            deal.hold_until = datetime.utcnow() + timedelta(days=days)
+            verification = dict(deal.verification or {}); verification["network_approved"] = True; deal.verification = verification
+            deal.hold_alerted_at = None
+            s.add(DealEvent(app_id=deal.id, actor_id=request["uid"], event="network_approved_manual", from_status=old, to_status="hold",
+                            comment=f"Ручная привязка постбэка #{postback.id}: сеть подтвердила конверсию; холд {days} дней до {deal.hold_until:%Y-%m-%d}"))
+            notice = (deal.user_id, f"✅ Партнёрская сеть подтвердила сделку #{deal.id}.\n⏳ Вознаграждение {int((deal.offer_snapshot or {}).get('reward', 0))} ₽ в холде до {deal.hold_until:%d.%m.%Y}. После окончания холда администратор проверит сделку и доказательства; деньги станут доступны после ручного подтверждения.")
+        await _admin_audit(s, request["uid"], "postback_bound", "postback", str(postback.id), f"app_id={deal.id}; lead_id={_pb_lead_id(postback.raw) or '—'}")
+        result = {"id": postback.id, "subid": postback.subid, "app_id": deal.id, "status": deal.status, "payout": deal.payout}
+        await s.commit()
+    if notice:
+        await notify(bot, notice[0], notice[1])
+    return ok(result)
 
 
 async def admin_broadcast_preview(request):
@@ -1609,6 +1682,7 @@ def setup_tma(app: web.Application, bot):
     r.add_get("/api/v1/admin/overview", admin_overview)
     r.add_get("/api/v1/admin/section/{section}", admin_section)
     r.add_post("/api/v1/admin/applications/{id}/action", admin_app_action)
+    r.add_post("/api/v1/admin/postbacks/{id}/bind", admin_postback_bind)
     r.add_get("/api/v1/admin/applications/{id}/proof/{idx}", admin_proof_file)
     r.add_post("/api/v1/admin/users/{id}/action", admin_user_action)
     r.add_post("/api/v1/admin/broadcasts/preview", admin_broadcast_preview)

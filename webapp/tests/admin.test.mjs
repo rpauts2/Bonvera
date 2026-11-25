@@ -25,6 +25,8 @@ test("admin workspace exposes operational sections and server-backed actions", a
   assert.match(admin, /Отказать и вернуть/);
   assert.match(admin, /admin\/applications\/.*action/);
   assert.match(admin, /admin\/payouts\/.*action/);
+  assert.match(admin, /admin\/postbacks\/.*\/bind/);
+  assert.match(admin, /can_bind/);
   assert.match(admin, /admin\/broadcasts\/preview/);
   assert.match(admin, /admin\/broadcasts\/send/);
   assert.match(admin, /window\.confirm/);

@@ -42,6 +42,7 @@ services:
     environment:
       DB_URL: postgresql+asyncpg://cashback:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/cashback
       REDIS_URL: redis://redis:6379/0
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     depends_on:
       db:
         condition: service_healthy

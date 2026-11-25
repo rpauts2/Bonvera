@@ -11,6 +11,49 @@ from bot.logic import parse_subid, confirm, notify, clawback_credit
 OK = {"approved", "confirmed", "paid", "1", "accepted"}
 NO = {"rejected", "declined", "2", "cancelled"}
 WAIT = {"hold", "pending", "0"}
+# Networks name the tracking slot differently. An unsubstituted macro arrives
+# literally as "{sub1}", so brace-wrapped values are treated as missing.
+SUBID_KEYS = ("subid", "sub1", "sub_id", "aff_sub", "aff_sub1", "s1", "utm_content", "partner_sub_id")
+
+
+def pick_subid(q) -> str:
+    for key in SUBID_KEYS:
+        val = (q.get(key) or "").strip()
+        if val and not (val.startswith("{") and val.endswith("}")):
+            return val
+    return ""
+
+_ALERTED_LEADS: list = []
+
+
+def _first_time(key: str) -> bool:
+    """Suppress repeat alerts for the same network lead (bounded memory)."""
+    if key in _ALERTED_LEADS:
+        return False
+    _ALERTED_LEADS.append(key)
+    del _ALERTED_LEADS[:-500]
+    return True
+
+
+async def _alert_unattributed(bot, reason: str, sid: str, st: str, payout: int, safe_q: dict) -> None:
+    """A paid conversion we cannot tie to a deal is lost money: tell the admins."""
+    if st not in OK or payout <= 0:
+        return
+    ref = safe_q.get("lead_id") or safe_q.get("order_id") or safe_q.get("click_id") or "unknown"
+    if not _first_time(f"{ref}|{st}"):
+        return
+    text = (
+        f"⚠️ Постбэк без привязки к заявке ({reason})\n"
+        f"Лид сети: {ref} · оффер {safe_q.get('offer_id') or '—'} · {payout} ₽\n"
+        f"subid: {sid or '—'}\n"
+        "Сверь с ProCPA: если конверсия реальная, привяжи её вручную в панели (раздел Postback)."
+    )
+    for ad in cfg.admins:
+        try:
+            await notify(bot, ad, text)
+        except Exception:
+            logging.exception("unattributed postback alert failed")
+
 
 def make_web(bot):
     async def pb(req):
@@ -43,8 +86,7 @@ def make_web(bot):
         if not hmac.compare_digest(supplied, cfg.pb_secret):
             logging.warning("postback auth failed: got %d chars, expected %d", len(supplied), len(cfg.pb_secret))
             return web.json_response({"ok": False, "err": "auth"}, status=403)
-        # ProCPA and many other networks put the deal reference in sub1.
-        sid = q.get("subid") or q.get("sub1") or ""
+        sid = pick_subid(q)
         st = (q.get("status") or "").lower()
         try: payout = int(float(q.get("payout", 0) or 0))
         except (ValueError, TypeError): payout = 0
@@ -60,9 +102,13 @@ def make_web(bot):
                 if val:
                     safe_q[key] = str(val)[:64]
             s.add(PbLog(subid=sid, status=st, payout=payout, raw=str(safe_q))); await s.commit()
-            if not aid: return web.json_response({"ok": False, "err": "subid"})
+            if not aid:
+                await _alert_unattributed(bot, "нет subid", sid, st, payout, safe_q)
+                return web.json_response({"ok": False, "err": "subid"})
             a = (await s.execute(select(App).where(App.id == aid).with_for_update())).scalar_one_or_none()
-            if not a: return web.json_response({"ok": False, "err": "app"})
+            if not a:
+                await _alert_unattributed(bot, "заявка не найдена", sid, st, payout, safe_q)
+                return web.json_response({"ok": False, "err": "app"})
             if st in OK and a.status in (CONFIRMED, PAID) and payout > 0 and a.payout <= 0:
                 a.payout = payout
                 s.add(DealEvent(app_id=a.id, actor_id=None, event="network_payout_received", from_status=a.status, to_status=a.status,
